@@ -2,9 +2,13 @@ extern crate rand;
 
 use rand::Rng;
 
+const PROGRAM_LENGTH: usize = 20;
+const MAX_STEPS: usize = 100;
+const NUM_PROGRAMS: usize = 100;
+
 fn main() {
-    for _ in 0..100 {
-        let program = random_bf(20);
+    for _ in 0..NUM_PROGRAMS {
+        let program = random_bf(PROGRAM_LENGTH);
         assert!(is_valid(&program));
         // println!("{}", to_string(&program));
         let mut state = State::new(program);
@@ -14,7 +18,7 @@ fn main() {
             // println!("{:?}", &state.memory[0..10]);
             state.step(&mut input);
 
-            if num_steps > 100 {
+            if num_steps > MAX_STEPS {
                 // println!("too many steps! breaking early...");
                 break;
             }
