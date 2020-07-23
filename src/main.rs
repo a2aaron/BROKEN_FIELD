@@ -1,5 +1,7 @@
 extern crate rand;
 
+use std::collections::HashMap;
+
 use rand::Rng;
 
 const PROGRAM_LENGTH: usize = 20;
@@ -15,7 +17,11 @@ fn main() {
         let mut input = "Hello, world!".as_bytes().iter().map(|&b| b as i8);
         let mut num_steps = 0;
         while !state.halted() {
-            // println!("{:?}", &state.memory[0..10]);
+            // println!(
+            //     "{:?} {}",
+            //     &state.memory[0..20],
+            //     to_string(&vec![state.program[state.program_pointer]]),
+            // );
             state.step(&mut input);
 
             if num_steps > MAX_STEPS {
@@ -24,11 +30,37 @@ fn main() {
             }
             num_steps += 1;
         }
+        let score = interest_score(&state.output);
         let output: Vec<u8> = state.output.iter().map(|&x| x as u8).collect();
         let output = String::from_utf8_lossy(&output);
-        if !output.trim().is_empty() && output.len() > 1 {
-            println!("{}\t\t{}", to_string(&state.program), &output);
+        if score >= 2 {
+            //|| rand::thread_rng().gen_range(0, 10) > 7 {
+            println!("{}\t\t{}", to_string(&state.program), &output,);
+            // println!(
+            //     "{}\t\t{}\t{:?}\t{}",
+            //     to_string(&state.program),
+            //     &output,
+            //     &state.output,
+            //     score
+            // );
         }
+    }
+}
+
+fn interest_score(string: &Vec<i8>) -> usize {
+    // charcters 0 thru 31 in ASCII are all unprintable and thus not very good
+    let all_unprintable = string.iter().all(|&x| 0 <= x && x <= 31);
+    let all_same = string.iter().all(|&x| x == *string.first().unwrap_or(&0));
+    let very_short = string.len() <= 5;
+
+    if all_unprintable {
+        0
+    } else if all_same {
+        string.len() / 4
+    } else if very_short {
+        string.len()
+    } else {
+        100
     }
 }
 
@@ -53,16 +85,19 @@ struct State {
     memory_pointer: usize,
     memory: Vec<i8>,
     output: Vec<i8>,
+    loop_dict: HashMap<usize, usize>,
 }
 
 impl State {
     fn new(program: Program) -> State {
+        let loop_dict = loop_dict(&program);
         State {
             program,
             program_pointer: 0,
             memory_pointer: 0,
             memory: vec![0; 100],
             output: Vec::with_capacity(100),
+            loop_dict,
         }
     }
 
@@ -81,20 +116,18 @@ impl State {
             Right => self.memory_pointer += 1,
             StartLoop => {
                 if self.memory[self.memory_pointer] == 0 {
-                    let mut new_pointer = self.program_pointer;
-                    while self.program[new_pointer] != EndLoop {
-                        new_pointer += 1;
-                    }
-                    self.program_pointer = new_pointer;
+                    self.program_pointer = *self
+                        .loop_dict
+                        .get(&self.program_pointer)
+                        .expect("missing StartLoop dict entry!");
                 }
             }
             EndLoop => {
                 if self.memory[self.memory_pointer] != 0 {
-                    let mut new_pointer = self.program_pointer;
-                    while self.program[new_pointer] != StartLoop {
-                        new_pointer -= 1;
-                    }
-                    self.program_pointer = new_pointer;
+                    self.program_pointer = *self
+                        .loop_dict
+                        .get(&self.program_pointer)
+                        .expect("missing EndLoop dict entry!");
                 }
             }
             Input => match input.next() {
@@ -109,6 +142,52 @@ impl State {
     fn halted(&self) -> bool {
         self.program_pointer == self.program.len()
     }
+}
+
+fn loop_dict(program: &Program) -> HashMap<usize, usize> {
+    use BFChar::*;
+    let mut hashmap = HashMap::new();
+    let mut startloop_locs = Vec::new();
+    for (i, &instr) in program.iter().enumerate() {
+        match instr {
+            Plus | Minus | Left | Right | Input | Output => (),
+            StartLoop => {
+                hashmap.insert(i, 0);
+                startloop_locs.push(i);
+            }
+            EndLoop => {
+                hashmap.insert(
+                    i,
+                    startloop_locs
+                        .pop()
+                        .expect("Empty startloop_locs (maybe the program is invalid)"),
+                );
+            }
+        }
+    }
+    debug_assert!(startloop_locs.is_empty());
+    hashmap
+}
+
+fn from_string(string: &str) -> Program {
+    let mut program = Program::with_capacity(string.len());
+    for char in string.chars() {
+        use BFChar::*;
+        let instr = match char {
+            '+' => Plus,
+            '-' => Minus,
+            '<' => Left,
+            '>' => Right,
+            '[' => StartLoop,
+            ']' => EndLoop,
+            ',' => Input,
+            '.' => Output,
+            _ => continue,
+        };
+        program.push(instr);
+    }
+
+    program
 }
 
 fn to_string(program: &Program) -> String {
