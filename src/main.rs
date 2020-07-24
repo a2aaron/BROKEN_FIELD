@@ -7,59 +7,81 @@ use pixel_canvas::{input::MouseState, Canvas, Color, Image};
 use rand::Rng;
 
 const PROGRAM_LENGTH: usize = 20;
-const MAX_STEPS: usize = 100;
+const MAX_STEPS: usize = 1000;
 const NUM_PROGRAMS: usize = 100;
+const MAX_MEMORY: usize = 1000;
 
 fn main() {
     let canvas = Canvas::new(512, 512)
         .title("BROKEN_FIELD")
         .state(State::new());
+    // .state(MouseState::new())
+    // .input(MouseState::handle_input);
 
     canvas.render(|state, image| {
-        state.step();
-
-        // let score = interest_score(&state.state.output);
-        // let output: Vec<u8> = state.state.output.iter().map(|&x| x as u8).collect();
-        // let output = String::from_utf8_lossy(&output);
-        // if score >= 0 {
-        //     println!("{}\t\t{}", to_string(&state.program.instrs), &output,);
+        if state.index < state.execution_history.len() {
+            use BFChar::*;
+            render_image(image, &state.execution_history[state.index]);
+            state.index += 5;
+        // while state.index < state.execution_history.len() {
+        //     match state.execution_history[state.index].1 {
+        //         Plus | Minus | Input => break,
+        //         Left | Right | Output => (),
+        //         StartLoop | EndLoop => (),
+        //     }
+        //     state.index += 1;
         // }
-
-        render_image(image, &state.state);
+        } else {
+            *state = State::new();
+            println!("{}", to_string(&state.program.instrs));
+        }
     });
 }
 
 struct State {
     program: Program,
-    state: BFState,
-    num_steps: usize,
-    input: Box<dyn Iterator<Item = i8>>,
+    execution_history: Vec<(BFState, BFChar)>,
+    index: usize,
 }
 
 impl State {
     fn new() -> State {
-        State {
-            program: random_bf(PROGRAM_LENGTH),
-            state: BFState::new(),
-            num_steps: 0,
-            input: Box::new("Hello, world!".as_bytes().iter().map(|&b| b as i8)),
-        }
-    }
+        let program = random_bf(PROGRAM_LENGTH);
+        let execution_history = execution_history(
+            &program,
+            &mut Box::new("Hello, world!".as_bytes().iter().map(|&b| b as i8)),
+            MAX_STEPS,
+        );
 
-    fn step(&mut self) {
-        if !halted(&self.state, &self.program) && self.num_steps <= MAX_STEPS {
-            self.state.step(&self.program, &mut self.input);
-            self.num_steps += 1;
-        } else {
-            self.program = random_bf(PROGRAM_LENGTH);
-            self.state = BFState::new();
-            self.num_steps = 0;
-            self.input = Box::new("Hello, world!".as_bytes().iter().map(|&b| b as i8));
+        State {
+            program,
+            execution_history,
+            index: 0,
         }
     }
 }
 
-fn render_image(image: &mut Image, state: &BFState) {
+fn execution_history(
+    program: &Program,
+    input: &mut dyn Iterator<Item = i8>,
+    max_steps: usize,
+) -> Vec<(BFState, BFChar)> {
+    let mut history = Vec::with_capacity(max_steps);
+    let mut state = BFState::new();
+    let mut num_steps = 0;
+
+    while !halted(&state, &program) && num_steps <= MAX_STEPS {
+        let instr = program.get(state.program_pointer);
+        state.step(&program, input);
+
+        history.push((state.clone(), instr));
+        num_steps += 1;
+    }
+
+    history
+}
+
+fn render_image(image: &mut Image, (state, instr): &(BFState, BFChar)) {
     let width = image.width() as usize;
     for (y, row) in image.chunks_mut(width).enumerate() {
         for (x, pixel) in row.iter_mut().enumerate() {
@@ -77,13 +99,47 @@ fn render_image(image: &mut Image, state: &BFState) {
                 || subpixel_y == pixel_size - 1;
             let draw_pointer = i == state.memory_pointer;
             if draw_pointer && edge_of_megapixel {
-                *pixel = Color { r: 255, g: 0, b: 0 };
+                use BFChar::*;
+                *pixel = match instr {
+                    Plus => Color { r: 0, g: 255, b: 0 },
+                    Minus => Color { r: 255, g: 0, b: 0 },
+                    Left => Color {
+                        r: 255,
+                        g: 128,
+                        b: 128,
+                    },
+                    Right => Color {
+                        r: 128,
+                        g: 255,
+                        b: 128,
+                    },
+                    StartLoop => Color {
+                        r: 0,
+                        g: 128,
+                        b: 255,
+                    },
+                    EndLoop => Color {
+                        r: 255,
+                        g: 128,
+                        b: 0,
+                    },
+                    Input => Color {
+                        r: 255,
+                        g: 255,
+                        b: 0,
+                    },
+                    Output => Color {
+                        r: 0,
+                        g: 255,
+                        b: 255,
+                    },
+                };
             } else {
                 let value = *state.memory.get(i).unwrap_or(&0) as u8;
                 *pixel = Color {
-                    r: value.wrapping_mul(15),
-                    g: value.wrapping_mul(14),
-                    b: value.wrapping_mul(13),
+                    r: value.wrapping_mul(63),
+                    g: value.wrapping_mul(65),
+                    b: value.wrapping_mul(67),
                 };
             }
         }
@@ -107,6 +163,7 @@ fn interest_score(string: &Vec<i8>) -> usize {
     }
 }
 
+#[derive(Debug)]
 struct Program {
     instrs: Vec<BFChar>,
     loop_dict: HashMap<usize, usize>,
@@ -114,6 +171,7 @@ struct Program {
 
 impl Program {
     fn new(instrs: Vec<BFChar>) -> Program {
+        debug_assert!(is_valid(&instrs));
         let loop_dict = loop_dict(&instrs);
         Program { instrs, loop_dict }
     }
@@ -152,7 +210,7 @@ impl BFState {
         BFState {
             program_pointer: 0,
             memory_pointer: 0,
-            memory: vec![0; 100],
+            memory: vec![0; MAX_MEMORY],
             output: Vec::with_capacity(100),
         }
     }
@@ -194,7 +252,7 @@ impl BFState {
     }
 }
 fn halted(state: &BFState, program: &Program) -> bool {
-    state.program_pointer == program.instrs.len()
+    state.program_pointer >= program.instrs.len()
 }
 
 fn loop_dict(program: &[BFChar]) -> HashMap<usize, usize> {
@@ -222,7 +280,7 @@ fn loop_dict(program: &[BFChar]) -> HashMap<usize, usize> {
     hashmap
 }
 
-fn from_string(string: &str) -> Vec<BFChar> {
+fn from_string(string: &str) -> Program {
     let mut program = Vec::with_capacity(string.len());
     for char in string.chars() {
         use BFChar::*;
@@ -240,7 +298,7 @@ fn from_string(string: &str) -> Vec<BFChar> {
         program.push(instr);
     }
 
-    program
+    Program::new(program)
 }
 
 fn to_string(program: &[BFChar]) -> String {
