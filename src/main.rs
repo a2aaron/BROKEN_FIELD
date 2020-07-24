@@ -5,16 +5,21 @@ extern crate rand;
 
 use pixel_canvas::{
     input::{
-        glutin::event::{ElementState, MouseButton},
+        glutin::event::{
+            ElementState, KeyboardInput, MouseButton, MouseScrollDelta, VirtualKeyCode,
+        },
         Event, MouseState, WindowEvent,
     },
     Canvas, Color, Image,
 };
 use rand::Rng;
 
-const PROGRAM_LENGTH: usize = 20;
-const MAX_STEPS: usize = 1000;
-const MAX_MEMORY: usize = 1000;
+const PROGRAM_LENGTH: usize = 100;
+const MAX_STEPS: usize = 10000;
+const MEMORY_BEHAVIOR: MemoryBehavior = MemoryBehavior::Wrapping(INITAL_MEMORY);
+const INITAL_MEMORY: usize = 64;
+const EXTEND_MEMORY_AMOUNT: usize = 64;
+const PIXEL_SIZE: usize = 64;
 
 fn main() {
     let canvas = Canvas::new(512, 512)
@@ -31,6 +36,30 @@ fn main() {
                     } => {
                         *state = State::new();
                     }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Right),
+                                ..
+                            },
+                        ..
+                    } => {
+                        state.index += 1;
+                        println!("Speed: {}", state.index);
+                    }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Left),
+                                ..
+                            },
+                        ..
+                    } => {
+                        state.index = state.index.saturating_sub(1);
+                        println!("Speed: {}", state.index)
+                    }
                     _ => (),
                 },
                 _ => (),
@@ -39,47 +68,38 @@ fn main() {
         });
 
     canvas.render(|state, image| {
-        if state.index < state.execution_history.len() {
-            use BFChar::*;
-            render_image(image, &state.execution_history[state.index]);
-            state.index += 5;
-        // while state.index < state.execution_history.len() {
-        //     match state.execution_history[state.index].1 {
-        //         Plus | Minus | Input => break,
-        //         Left | Right | Output => (),
-        //         StartLoop | EndLoop => (),
-        //     }
-        //     state.index += 1;
-        // }
-        } else {
-            *state = State::new();
+        if !halted(&state.state, &state.program) {
+            for _ in 0..state.index {
+                state.state.step(&state.program, &mut state.input);
+            }
         }
+        render_image(
+            image,
+            &state.state,
+            state.program.instrs[state.state.program_pointer],
+        );
     });
 }
 
 struct State {
     program: Program,
-    execution_history: Vec<(BFState, BFChar)>,
+    state: BFState,
     index: usize,
     mouse: MouseState,
+    input: Box<dyn Iterator<Item = i8>>,
 }
 
 impl State {
     fn new() -> State {
         let program = random_bf(PROGRAM_LENGTH);
-        let execution_history = execution_history(
-            &program,
-            &mut Box::new("Hello, world!".as_bytes().iter().map(|&b| b as i8)),
-            MAX_STEPS,
-        );
-
         println!("{}", to_string(&program.instrs));
 
         State {
             program,
-            execution_history,
-            index: 0,
+            state: BFState::new(),
+            index: 5,
             mouse: MouseState::new(),
+            input: Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8)),
         }
     }
 }
@@ -104,22 +124,21 @@ fn execution_history(
     history
 }
 
-fn render_image(image: &mut Image, (state, instr): &(BFState, BFChar)) {
+fn render_image(image: &mut Image, state: &BFState, instr: BFChar) {
     let width = image.width() as usize;
     for (y, row) in image.chunks_mut(width).enumerate() {
         for (x, pixel) in row.iter_mut().enumerate() {
-            let pixel_size = 32;
-            let megapixel_x = x / pixel_size;
-            let megapixel_y = y / pixel_size;
-            let megapixel_width = width / pixel_size;
+            let megapixel_x = x / PIXEL_SIZE;
+            let megapixel_y = y / PIXEL_SIZE;
+            let megapixel_width = width / PIXEL_SIZE;
             let i = megapixel_y * megapixel_width + megapixel_x;
 
-            let subpixel_x = x - megapixel_x * pixel_size;
-            let subpixel_y = y - megapixel_y * pixel_size;
+            let subpixel_x = x - megapixel_x * PIXEL_SIZE;
+            let subpixel_y = y - megapixel_y * PIXEL_SIZE;
             let edge_of_megapixel = subpixel_x == 0
                 || subpixel_y == 0
-                || subpixel_x == pixel_size - 1
-                || subpixel_y == pixel_size - 1;
+                || subpixel_x == PIXEL_SIZE - 1
+                || subpixel_y == PIXEL_SIZE - 1;
             let draw_pointer = i == state.memory_pointer;
             if draw_pointer && edge_of_megapixel {
                 use BFChar::*;
@@ -225,6 +244,7 @@ struct BFState {
     program_pointer: usize,
     memory_pointer: usize,
     memory: Vec<i8>,
+    memory_behavior: MemoryBehavior,
     output: Vec<i8>,
 }
 
@@ -233,7 +253,8 @@ impl BFState {
         BFState {
             program_pointer: 0,
             memory_pointer: 0,
-            memory: vec![0; MAX_MEMORY],
+            memory: vec![0; INITAL_MEMORY],
+            memory_behavior: MEMORY_BEHAVIOR,
             output: Vec::with_capacity(100),
         }
     }
@@ -241,6 +262,8 @@ impl BFState {
     fn step(&mut self, program: &Program, input: &mut dyn Iterator<Item = i8>) {
         debug_assert!(!halted(self, program));
         use BFChar::*;
+        use MemoryBehavior::*;
+
         let instruction = program.get(self.program_pointer);
         match instruction {
             Plus => {
@@ -249,8 +272,23 @@ impl BFState {
             Minus => {
                 self.memory[self.memory_pointer] = self.memory[self.memory_pointer].wrapping_sub(1)
             }
-            Left => self.memory_pointer = self.memory_pointer.saturating_sub(1),
-            Right => self.memory_pointer += 1,
+            Left => match self.memory_behavior {
+                Wrapping(modulo) => {
+                    self.memory_pointer = wrapping_add(self.memory_pointer, -1, modulo)
+                }
+                InfiniteRightwards => self.memory_pointer = self.memory_pointer.saturating_sub(1),
+            },
+            Right => match self.memory_behavior {
+                Wrapping(modulo) => {
+                    self.memory_pointer = wrapping_add(self.memory_pointer, 1, modulo)
+                }
+                InfiniteRightwards => {
+                    self.memory_pointer += 1;
+                    if self.memory_pointer >= self.memory.len() {
+                        self.memory.extend([0; EXTEND_MEMORY_AMOUNT].iter());
+                    }
+                }
+            },
             StartLoop => {
                 if self.memory[self.memory_pointer] == 0 {
                     self.program_pointer = program
@@ -274,8 +312,23 @@ impl BFState {
         self.program_pointer += 1;
     }
 }
+
+fn wrapping_add(a: usize, b: isize, modulo: usize) -> usize {
+    let x = a as isize + b;
+    if x < 0 {
+        (x + modulo as isize) as usize % modulo
+    } else {
+        x as usize % modulo
+    }
+}
+
 fn halted(state: &BFState, program: &Program) -> bool {
     state.program_pointer >= program.instrs.len()
+}
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum MemoryBehavior {
+    Wrapping(usize),
+    InfiniteRightwards,
 }
 
 fn loop_dict(program: &[BFChar]) -> HashMap<usize, usize> {
