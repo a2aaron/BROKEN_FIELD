@@ -3,20 +3,40 @@ use std::collections::HashMap;
 extern crate pixel_canvas;
 extern crate rand;
 
-use pixel_canvas::{input::MouseState, Canvas, Color, Image};
+use pixel_canvas::{
+    input::{
+        glutin::event::{ElementState, MouseButton},
+        Event, MouseState, WindowEvent,
+    },
+    Canvas, Color, Image,
+};
 use rand::Rng;
 
 const PROGRAM_LENGTH: usize = 20;
 const MAX_STEPS: usize = 1000;
-const NUM_PROGRAMS: usize = 100;
 const MAX_MEMORY: usize = 1000;
 
 fn main() {
     let canvas = Canvas::new(512, 512)
         .title("BROKEN_FIELD")
-        .state(State::new());
-    // .state(MouseState::new())
-    // .input(MouseState::handle_input);
+        .state(State::new())
+        .input(|_info, state, event| {
+            // println!("new event {:?}", event);
+            match event {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::MouseInput {
+                        button: MouseButton::Left,
+                        state: ElementState::Pressed,
+                        ..
+                    } => {
+                        *state = State::new();
+                    }
+                    _ => (),
+                },
+                _ => (),
+            };
+            true
+        });
 
     canvas.render(|state, image| {
         if state.index < state.execution_history.len() {
@@ -33,7 +53,6 @@ fn main() {
         // }
         } else {
             *state = State::new();
-            println!("{}", to_string(&state.program.instrs));
         }
     });
 }
@@ -42,6 +61,7 @@ struct State {
     program: Program,
     execution_history: Vec<(BFState, BFChar)>,
     index: usize,
+    mouse: MouseState,
 }
 
 impl State {
@@ -53,10 +73,13 @@ impl State {
             MAX_STEPS,
         );
 
+        println!("{}", to_string(&program.instrs));
+
         State {
             program,
             execution_history,
             index: 0,
+            mouse: MouseState::new(),
         }
     }
 }
