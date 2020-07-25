@@ -17,10 +17,10 @@ use rand::Rng;
 const PROGRAM_LENGTH: usize = 100;
 const MAX_STEPS: usize = 10000;
 const MEMORY_BEHAVIOR: MemoryBehavior = MemoryBehavior::Wrapping(INITAL_MEMORY);
-const INITAL_MEMORY: usize = 64;
+const INITAL_MEMORY: usize = 256;
 const EXTEND_MEMORY_AMOUNT: usize = 64;
-const PIXEL_SIZE: usize = 64;
-
+const PIXEL_SIZE: usize = 32;
+const INITIAL_SPEED: usize = 500;
 fn main() {
     let canvas = Canvas::new(512, 512)
         .title("BROKEN_FIELD")
@@ -36,29 +36,31 @@ fn main() {
                     } => {
                         *state = State::new();
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Right),
-                                ..
-                            },
+                    WindowEvent::MouseInput {
+                        button: MouseButton::Right,
+                        state: ElementState::Pressed,
                         ..
                     } => {
-                        state.index += 1;
-                        println!("Speed: {}", state.index);
+                        // restart the program without changing it
+                        state.state = BFState::new();
                     }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
                                 state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Left),
+                                virtual_keycode: Some(keycode),
                                 ..
                             },
                         ..
                     } => {
-                        state.index = state.index.saturating_sub(1);
-                        println!("Speed: {}", state.index)
+                        match keycode {
+                            VirtualKeyCode::Right => state.index += 1,
+                            VirtualKeyCode::Left => state.index = state.index.saturating_sub(1),
+                            VirtualKeyCode::Up => state.index = (state.index * 2).min(200_000),
+                            VirtualKeyCode::Down => state.index /= 2,
+                            _ => (),
+                        };
+                        println!("Speed: {}", state.index);
                     }
                     _ => (),
                 },
@@ -92,14 +94,15 @@ struct State {
 impl State {
     fn new() -> State {
         let program = random_bf(PROGRAM_LENGTH);
+        // let program = from_string("<>->>[+>-[[+<>>]->]>>[+<><+>+[<>><>[+<][>[]-++-<+[><-]<][][+-[->]<[]>+[><<[<>[>-]-+->+][>[+<+][+><<-]]]]]]]");
         println!("{}", to_string(&program.instrs));
 
         State {
             program,
             state: BFState::new(),
-            index: 5,
+            index: INITIAL_SPEED,
             mouse: MouseState::new(),
-            input: Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8)),
+            input: Box::new("".as_bytes().iter().cycle().map(|&b| b as i8)),
         }
     }
 }
@@ -417,7 +420,7 @@ fn random_bf(length: usize) -> Program {
     use BFChar::*;
     let mut program = Vec::with_capacity(length + 2);
     let mut num_open_braces = 0;
-    let choices = &[Plus, Minus, Left, Right, StartLoop, EndLoop, Input, Output];
+    let choices = &[Plus, Minus, Left, Right, StartLoop, EndLoop]; // &[Plus, Minus, Left, Right, StartLoop, EndLoop, Input, Output];
 
     while program.len() < length || num_open_braces != 0 {
         let mut bf_char = *rand::thread_rng().choose(choices).unwrap();
