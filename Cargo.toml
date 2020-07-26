@@ -5,3 +5,8 @@ authors = ["Aaron Kofsky <a2aarontothe2@gmail.com>"]
 
 [dependencies]
 rand = "*"
+pixel-canvas = "0.2.1"
+
+
+[profile.dev.package."*"]
+opt-level = 3
