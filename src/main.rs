@@ -70,15 +70,21 @@ fn main() {
         });
 
     canvas.render(|state, image| {
-        if !halted(&state.state, &state.program) {
-            for _ in 0..state.index {
+        for _ in 0..state.index {
+            if !halted(&state.state, &state.program) {
                 state.state.step(&state.program, &mut state.input);
+            } else {
+                break;
             }
         }
         render_image(
             image,
             &state.state,
-            state.program.instrs[state.state.program_pointer],
+            *state
+                .program
+                .instrs
+                .get(state.state.program_pointer)
+                .unwrap_or(&BFChar::Plus),
         );
     });
 }
@@ -94,7 +100,7 @@ struct State {
 impl State {
     fn new() -> State {
         let program = random_bf(PROGRAM_LENGTH);
-        // let program = from_string("<>->>[+>-[[+<>>]->]>>[+<><+>+[<>><>[+<][>[]-++-<+[><-]<][][+-[->]<[]>+[><<[<>[>-]-+->+][>[+<+][+><<-]]]]]]]");
+        // let program = from_string("+[>+]");
         println!("{}", to_string(&program.instrs));
 
         State {
