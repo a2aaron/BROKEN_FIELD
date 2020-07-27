@@ -30,8 +30,8 @@ impl BFState {
 
     pub fn step(&mut self, program: &Program, input: &mut dyn Iterator<Item = i8>) {
         debug_assert!(!halted(self, program));
+        use self::MemoryBehavior::*;
         use BFChar::*;
-        use MemoryBehavior::*;
 
         let instruction = program.get(self.program_pointer);
         match instruction {
