@@ -47,6 +47,32 @@ pub enum Cmd {
     Comment(String),
 }
 
+impl Cmd {
+    /// Represents
+    fn stack_change(&self) -> isize {
+        use Cmd::*;
+        match *self {
+            Var(_) | NumF(_) | NumI(_) | Hex(_) => 1,
+            // These have no runtime effect
+            Meta(_, _) | Comment(_) => 0,
+            // These all pop 1 value off the stack and push 1
+            // value back on, so the net effect is no stack change
+            Sin | Cos | Tan => 0,
+            // Arr(x) pops a value off the stack (called the index)
+            // then pops x more values off the stack. Finally, it
+            // pushes one value back onto the stack based on the index
+            // Thus the net effect of Arr is to reduce the stack size by x.
+            Arr(x) => -saturating_as_isize(x),
+            Cond => -2,
+            // Split these into multiple branches to make rustfmt stop complaining
+            Add | Sub | Mul | Div | Mod => -1,
+            Shl | Shr | And | Orr | Xor => -1,
+            Pow | AddF | SubF | MulF | DivF | ModF => -1,
+            Lt | Gt | Leq | Geq | Eq | Neq => -1,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Program {
     cmds: Vec<Cmd>,
@@ -77,33 +103,17 @@ pub fn compile(cmds: Vec<Cmd>) -> Result<Program, CompileError> {
     let mut stack_size = 0 as isize;
     let mut error_kind = None;
     for (index, cmd) in cmds.iter().enumerate() {
-        let change = match *cmd {
-            Var(_) | NumF(_) | NumI(_) | Hex(_) => 1,
-            Meta(_, _) | Comment(_) => continue,
-            // These all pop 1 value off the stack and push 1
-            // value back on, so the net effect is no stack change
-            Sin | Cos | Tan => 0,
-            // Arr(x) pops a value off the stack (called the index)
-            // then pops x more values off the stack. Finally, it
-            // pushes one value back onto the stack based on the index
-            // Thus the net effect of Arr is to reduce the stack size by x.
-            Arr(x) => -saturating_as_isize(x),
-            Cond => -2,
-            // Split these into multiple branches to make rustfmt stop complaining
-            Add | Sub | Mul | Div | Mod => -1,
-            Shl | Shr | And | Orr | Xor => -1,
-            Pow | AddF | SubF | MulF | DivF | ModF => -1,
-            Lt | Gt | Leq | Geq | Eq | Neq => -1,
-        };
-        if stack_size + change <= 0 {
+        if stack_size + cmd.stack_change() <= 0 {
             error_kind = Some(ErrorKind::UnderflowedStack { index, stack_size });
             break;
         }
         // Do this after the if statement since we want to record the stack_size
         // before applying the effect of the operator.
-        stack_size += change;
+        stack_size += cmd.stack_change();
     }
 
+    // Disallow programs which end up with an empty stack, because there is
+    // nothing to return when this happens (ex: programs consisting of only comments)
     if stack_size == 0 && error_kind.is_none() {
         error_kind = Some(ErrorKind::EmptyProgram);
     }
@@ -274,7 +284,9 @@ macro_rules! stack_op {
     }};
     // Pop the variables in reverse order
     ($stack:ident { }) => {};
-    ($stack:ident { $var:ident : $t:ty $(, $rvar:ident : $rt:ty)* }) => {
+    // this pops stuff in reverse order, so if we have "1 2 3" and get a "-" op
+    // we will pop 3 then 2 and do 3 - 2.
+     ($stack:ident { $var:ident : $t:ty $(, $rvar:ident : $rt:ty)* }) => {
         stack_op!($stack { $($rvar : $rt),* });
         let $var: $t = $stack.pop().unwrap().into();
     }
@@ -504,4 +516,50 @@ pub fn format_beat(cmds: &[Cmd]) -> String {
         .map(|cmd| format!("{}", cmd))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+pub fn random_beat(length: usize) -> Program {
+    use Cmd::*;
+    use VarType::*;
+    let mut program = Vec::with_capacity(length);
+    let cmds = &[
+        Var(Frame),
+        Var(MouseX),
+        Var(MouseY),
+        Var(ScreenX),
+        Var(ScreenY),
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Mod,
+        Shr,
+        Shl,
+        And,
+        Orr,
+        Xor,
+    ];
+
+    let mut stack_size = 0;
+
+    // force programs to end with one single value (produces better programs this way)
+    while program.len() < length || stack_size != 1 {
+        let cmd = rand::thread_rng().choose(cmds).unwrap().clone();
+        let stack_change = cmd.stack_change();
+
+        // Avoid causing an underflowed stack
+        if stack_size + stack_change <= 0 {
+            continue;
+        }
+
+        // If we are over the goal length, try to get the program to pop things
+        if program.len() >= length && stack_change >= 1 {
+            continue;
+        }
+
+        stack_size += stack_change;
+        program.push(cmd);
+    }
+
+    compile(program).expect("Expected valid program")
 }

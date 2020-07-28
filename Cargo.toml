@@ -11,3 +11,6 @@ pixel-canvas = "0.2.1"
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[profile.release]
+debug = true

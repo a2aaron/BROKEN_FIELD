@@ -15,3 +15,15 @@ MULTISTAGE
 
 WEAVED
 +[[>>>+<-<->>]]+-+<+-<->><<>>>+-[[[>+>-+-]-<>]]+<[+>>+><[+[[><>-<]>>-<]]]+><-->-><>>--[<[>><[>]+><<+]]
+
+LASER_DECAY
+my sx t sy % t sx % * my - / *
+
+BROKEN_TRIANGLE
+t my sy sx sy - % sx mx - / * %
+
+HALL_OF_SILICA
+mx my << sx % sx ^ sx * sy *
+
+CHECKERBOARD_HALLWAY
+t mx + my sx - % sy ^

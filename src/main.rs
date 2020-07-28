@@ -12,12 +12,19 @@ use pixel_canvas::{
     Canvas, Color, Image,
 };
 use rand::Rng;
-const RESOLUTION: usize = 256;
+// the actual size, in pixels of the window to display
+const WINDOW_WIDTH: usize = 512;
+const WINDOW_HEIGHT: usize = 512;
+// the internal size, in "pixels" of the bytebeat to render
+const BYTEBEAT_WIDTH: usize = 512;
+const BYTEBEAT_HEIGHT: usize = 512;
+// the size of pixels for a brainfuck program
 const PIXEL_SIZE: usize = 32;
 const INITIAL_SPEED: usize = 500;
 const PROGRAM_LENGTH: usize = 100;
 fn main() {
-    let canvas = Canvas::new(512, 512)
+    println!("BROKEN_FIELD_START");
+    let canvas = Canvas::new(WINDOW_WIDTH, WINDOW_HEIGHT)
         .title("BROKEN_FIELD")
         .state(State::new())
         .input(|info, state, event| {
@@ -39,6 +46,7 @@ fn main() {
                     } => {
                         // restart the program without changing it
                         state.state = bf::BFState::new();
+                        state.frame = 0;
                     }
                     WindowEvent::KeyboardInput {
                         input:
@@ -50,13 +58,36 @@ fn main() {
                         ..
                     } => {
                         match keycode {
-                            VirtualKeyCode::Right => state.index += 1,
-                            VirtualKeyCode::Left => state.index = state.index.saturating_sub(1),
-                            VirtualKeyCode::Up => state.index = (state.index * 2).min(200_000),
-                            VirtualKeyCode::Down => state.index /= 2,
+                            VirtualKeyCode::Right => {
+                                state.bytebeat_speed += 1;
+                                state.brainfuck_speed += 1;
+                            }
+                            VirtualKeyCode::Left => {
+                                state.bytebeat_speed -= 1;
+                                state.brainfuck_speed = state.brainfuck_speed.saturating_sub(1);
+                            }
+                            VirtualKeyCode::Up => {
+                                state.bytebeat_speed *= 2;
+                                // cap is here so that the program doesnt hang if you set the speed to like, 4 billion
+                                state.brainfuck_speed = (state.brainfuck_speed * 2).min(200_000);
+                            }
+                            VirtualKeyCode::Down => {
+                                state.bytebeat_speed /= 2;
+                                state.brainfuck_speed /= 2;
+                            }
                             _ => (),
                         };
-                        println!("Speed: {}", state.index);
+
+                        match keycode {
+                            VirtualKeyCode::Right
+                            | VirtualKeyCode::Left
+                            | VirtualKeyCode::Up
+                            | VirtualKeyCode::Down => println!(
+                                "Bytebeat Speed: {} (t = {})",
+                                state.bytebeat_speed, state.frame
+                            ),
+                            _ => (),
+                        };
                     }
                     _ => (),
                 },
@@ -66,10 +97,10 @@ fn main() {
         });
 
     canvas.render(|state, image| {
-        for screen_y in 0..RESOLUTION {
-            for screen_x in 0..RESOLUTION {
-                let idx = screen_y * RESOLUTION + screen_x;
-                state.image_data[idx] = bytebeat::eval_beat(
+        for screen_y in 0..BYTEBEAT_WIDTH {
+            for screen_x in 0..BYTEBEAT_HEIGHT {
+                let idx = screen_y * BYTEBEAT_WIDTH + screen_x;
+                state.bytebeat_data[idx] = bytebeat::eval_beat(
                     &mut state.stack,
                     &state.bytebeat,
                     state.frame,
@@ -82,8 +113,8 @@ fn main() {
             }
         }
 
-        render_image(image, &state.image_data);
-        state.frame += 1;
+        render_image(image, state.bytebeat_data.as_ref());
+        state.frame += state.bytebeat_speed;
         // for _ in 0..state.index {
         //     if !halted(&state.state, &state.program) {
         //         state.state.step(&state.program, &mut state.input);
@@ -107,46 +138,50 @@ pub struct State {
     pub bytebeat: bytebeat::Program,
     pub program: bf::Program,
     pub state: bf::BFState,
-    pub index: usize,
+    pub bytebeat_speed: i64,
+    pub brainfuck_speed: usize,
     pub mouse: MouseState,
     pub input: Box<dyn Iterator<Item = i8>>,
     pub frame: i64,
-    pub image_data: [u8; RESOLUTION * RESOLUTION],
+    pub bytebeat_data: Box<[u8]>,
 }
 
 impl State {
     fn new() -> State {
         let program = bf::random_bf(PROGRAM_LENGTH);
+        // let bytebeat = bytebeat::compile(
+        //     bytebeat::parse_beat("sx sy << my - my | mx % sx + sx / my & sy | t my - +")
+        //         .expect("bepis"),
+        // )
+        // .expect("conk");
+        let bytebeat = bytebeat::random_beat(10);
         // let program = from_string("+[>+]");
-        println!("{}", bf::to_string(&program.instrs));
-
-        use bytebeat::Cmd::*;
+        println!("{}", bytebeat);
 
         State {
             stack: Vec::with_capacity(10),
-            bytebeat: bytebeat::compile(
-                bytebeat::parse_beat("sx sy * t + mx my + +").expect("plz"),
-            )
-            .expect("plz2"),
+            bytebeat,
             program,
             state: bf::BFState::new(),
-            index: INITIAL_SPEED,
+            brainfuck_speed: INITIAL_SPEED,
             mouse: MouseState::new(),
             input: Box::new("".as_bytes().iter().cycle().map(|&b| b as i8)),
             frame: 0,
-            image_data: [0; RESOLUTION * RESOLUTION],
+            bytebeat_speed: 1,
+            bytebeat_data: vec![0; BYTEBEAT_WIDTH * BYTEBEAT_HEIGHT].into_boxed_slice(),
         }
     }
 }
 
 pub fn render_image(image: &mut Image, values: &[u8]) {
     let width = image.width() as usize;
-    let scale_factor = width / RESOLUTION;
+    let width_scale_factor = image.width() / BYTEBEAT_WIDTH;
+    let height_scale_factor = image.height() / BYTEBEAT_HEIGHT;
     for (y, row) in image.chunks_mut(width).enumerate() {
         for (x, pixel) in row.iter_mut().enumerate() {
-            let screen_x = x / scale_factor;
-            let screen_y = y / scale_factor;
-            let value = values[screen_y * RESOLUTION + screen_x];
+            let screen_x = x / width_scale_factor;
+            let screen_y = y / height_scale_factor;
+            let value = values[screen_y * BYTEBEAT_WIDTH + screen_x];
             *pixel = Color {
                 r: 0,     //value.wrapping_mul(63),
                 g: value, //value.wrapping_mul(65),
