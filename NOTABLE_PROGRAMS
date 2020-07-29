@@ -27,3 +27,27 @@ mx my << sx % sx ^ sx * sy *
 
 CHECKERBOARD_HALLWAY
 t mx + my sx - % sy ^
+
+GLITCHY_INTERFERENCE
+sx sx << my - my | my % sx + sx / my & sy | t my - +
+
+METALIC_INSET
+sy sx ^ sy & mx * my | sy -
+
+SPIKE_CITY
+my sx % sy sx % << sy % sx &
+
+GLASS_MACHINE
+sy sy t >> - sx % my t sy - + |
+
+BLACKOUT_CUTOUT
+mx sx * sy sx | %
+
+MUNCHING_SQUARES (play at hi speed)
+t sy my - sx mx - ^ mx - my + /
+
+SLIDING_WINDOW
+my sy - sx % my % sy mx | >>
+
+UPSHIFT
+t sy - t + sx ^ sy my my ^ >> ^
