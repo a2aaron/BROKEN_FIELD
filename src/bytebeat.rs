@@ -10,6 +10,15 @@ pub enum VarType {
     ScreenY,
 }
 
+impl VarType {
+    fn random() -> VarType {
+        use VarType::*;
+        *rand::thread_rng()
+            .choose(&[Frame, MouseX, MouseY, ScreenX, ScreenY])
+            .unwrap()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Cmd {
     Var(VarType),
@@ -562,4 +571,50 @@ pub fn random_beat(length: usize) -> Program {
     }
 
     compile(program).expect("Expected valid program")
+}
+
+pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
+    let mut cmds = program.cmds.clone();
+    use Cmd::*;
+    for cmd in cmds.iter_mut() {
+        if mutation_chance < rand::thread_rng().gen_range(0.0, 1.0) {
+            *cmd = match cmd {
+                Var(_) => Var(VarType::random()),
+                NumF(_) => Add,
+                NumI(_) => Add,
+                Hex(_) => Add,
+                Add => Add,
+                Sub => Add,
+                Mul => Add,
+                Div => Add,
+                Mod => Add,
+                Shl => Add,
+                Shr => Add,
+                And => Add,
+                Orr => Add,
+                Xor => Add,
+                Sin => Add,
+                Cos => Add,
+                Tan => Add,
+                Pow => Add,
+                AddF => Add,
+                SubF => Add,
+                MulF => Add,
+                DivF => Add,
+                ModF => Add,
+                Lt => Add,
+                Gt => Add,
+                Leq => Add,
+                Geq => Add,
+                Eq => Add,
+                Neq => Add,
+                Cond => Add,
+                Arr(_) => Add,
+                Meta(_, _) => Add,
+                Comment(_) => Add,
+            }
+        }
+    }
+
+    compile(cmds).expect("Expected valid program")
 }

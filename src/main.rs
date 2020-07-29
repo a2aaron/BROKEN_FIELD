@@ -227,20 +227,26 @@ impl BytebeatState {
     fn handle_input(&mut self, control: Controls) {
         use Controls::*;
         match control {
-            New => {
-                self.bytebeats.push(bytebeat::random_beat(PROGRAM_LENGTH));
-                self.index += 1;
-            }
+            New => self.bytebeats.push(bytebeat::random_beat(PROGRAM_LENGTH)),
             Restart => (),
             Next => self.index = (self.index + 1).min(self.bytebeats.len() - 1),
             Prev => self.index = self.index.saturating_sub(1),
-            Mutate => unimplemented!(),
+            Mutate => self
+                .bytebeats
+                .push(bytebeat::mutate(&self.bytebeats[self.index], 0.1)),
             VerySlower => self.speed /= 2,
             Slower => self.speed -= 1,
             Faster => self.speed += 1,
             VeryFaster => self.speed *= 2,
         }
 
+        // Go to the current bytebeat
+        match control {
+            New | Mutate => self.index = self.bytebeats.len() - 1,
+            _ => (),
+        }
+
+        // "Reset" the current bytebeat
         match control {
             New | Restart | Next | Prev | Mutate => {
                 self.frame = 0;
