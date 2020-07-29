@@ -19,12 +19,8 @@ impl VarType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Cmd {
-    Var(VarType),
-    NumF(f64),
-    NumI(i64),
-    Hex(i64),
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BiType {
     Add,
     Sub,
     Mul,
@@ -35,6 +31,24 @@ pub enum Cmd {
     And,
     Orr,
     Xor,
+}
+
+impl BiType {
+    fn random() -> BiType {
+        use BiType::*;
+        *rand::thread_rng()
+            .choose(&[Add, Sub, Mul, Div, Mod, Shl, Shr, And, Orr, Xor])
+            .unwrap()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Cmd {
+    Var(VarType),
+    NumF(f64),
+    NumI(i64),
+    Hex(i64),
+    Bi(BiType),
     Sin,
     Cos,
     Tan,
@@ -73,9 +87,7 @@ impl Cmd {
             // Thus the net effect of Arr is to reduce the stack size by x.
             Arr(x) => -saturating_as_isize(x),
             Cond => -2,
-            // Split these into multiple branches to make rustfmt stop complaining
-            Add | Sub | Mul | Div | Mod => -1,
-            Shl | Shr | And | Orr | Xor => -1,
+            Bi(_) => -1,
             Pow | AddF | SubF | MulF | DivF | ModF => -1,
             Lt | Gt | Leq | Geq | Eq | Neq => -1,
         }
@@ -310,6 +322,7 @@ pub fn eval_beat<T: Into<Val>>(
     screen_x: T,
     screen_y: T,
 ) -> Val {
+    use BiType::*;
     use Cmd::*;
     use VarType::*;
     let t = t.into();
@@ -329,26 +342,26 @@ pub fn eval_beat<T: Into<Val>>(
             NumF(y) => stack_op!( stack { } => y),
             NumI(y) => stack_op!( stack { } => y),
             Hex(y) => stack_op!( stack { } => y),
-            Add => stack_op!(stack { a: i64, b: i64 } => a.wrapping_add(b)),
-            Sub => stack_op!(stack { a: i64, b: i64 } => a.wrapping_sub(b)),
-            Mul => stack_op!(stack { a: i64, b: i64 } => a.wrapping_mul(b)),
-            Div => stack_op!(stack { a: i64, b: i64 } => {
+            Bi(Add) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_add(b)),
+            Bi(Sub) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_sub(b)),
+            Bi(Mul) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_mul(b)),
+            Bi(Div) => stack_op!(stack { a: i64, b: i64 } => {
                 if b == 0 { 0 } else { a.wrapping_div(b) }
             }),
-            Mod => stack_op!(stack { a: i64, b: i64 } => {
+            Bi(Mod) => stack_op!(stack { a: i64, b: i64 } => {
                 if b == 0 { 0 } else { a.wrapping_rem(b) }
             }),
-            Shl => stack_op!(stack { a: i64, b: i64 } => a << (((b % 64) + 64) % 64)),
-            Shr => stack_op!(stack { a: i64, b: i64 } => {
+            Bi(Shl) => stack_op!(stack { a: i64, b: i64 } => a << (((b % 64) + 64) % 64)),
+            Bi(Shr) => stack_op!(stack { a: i64, b: i64 } => {
                 let mut b = b % 64;
                 if b < 0 {
                     b += 64;
                 }
                 a >> b
             }),
-            And => stack_op!(stack { a: i64, b: i64 } => a & b),
-            Orr => stack_op!(stack { a: i64, b: i64 } => a | b),
-            Xor => stack_op!(stack { a: i64, b: i64 } => a ^ b),
+            Bi(And) => stack_op!(stack { a: i64, b: i64 } => a & b),
+            Bi(Orr) => stack_op!(stack { a: i64, b: i64 } => a | b),
+            Bi(Xor) => stack_op!(stack { a: i64, b: i64 } => a ^ b),
             Sin => stack_op!(stack { a: f64 } => a.sin()),
             Cos => stack_op!(stack { a: f64 } => a.cos()),
             Tan => stack_op!(stack { a: f64 } => a.tan()),
@@ -391,6 +404,7 @@ pub fn eval_beat<T: Into<Val>>(
 }
 
 pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
+    use BiType::*;
     use Cmd::*;
     use ParseError::*;
     use VarType::*;
@@ -402,16 +416,16 @@ pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
             "my" => Ok(Var(MouseY)),
             "sx" => Ok(Var(ScreenX)),
             "sy" => Ok(Var(ScreenY)),
-            "+" => Ok(Add),
-            "-" => Ok(Sub),
-            "*" => Ok(Mul),
-            "/" => Ok(Div),
-            "%" => Ok(Mod),
-            "<<" => Ok(Shl),
-            ">>" => Ok(Shr),
-            "&" => Ok(And),
-            "|" => Ok(Orr),
-            "^" => Ok(Xor),
+            "+" => Ok(Bi(Add)),
+            "-" => Ok(Bi(Sub)),
+            "*" => Ok(Bi(Mul)),
+            "/" => Ok(Bi(Div)),
+            "%" => Ok(Bi(Mod)),
+            "<<" => Ok(Bi(Shl)),
+            ">>" => Ok(Bi(Shr)),
+            "&" => Ok(Bi(And)),
+            "|" => Ok(Bi(Orr)),
+            "^" => Ok(Bi(Xor)),
             "sin" => Ok(Sin),
             "cos" => Ok(Cos),
             "tan" => Ok(Tan),
@@ -469,6 +483,7 @@ impl<'a> std::fmt::Display for ParseError<'a> {
 
 impl std::fmt::Display for Cmd {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use BiType::*;
         use Cmd::*;
         use VarType::*;
         match *self {
@@ -487,16 +502,16 @@ impl std::fmt::Display for Cmd {
             }
             NumI(y) => write!(fmt, "{}", y),
             Hex(y) => write!(fmt, "0x{:X}", y), // Write out as 0xHEX
-            Add => write!(fmt, "+"),
-            Sub => write!(fmt, "-"),
-            Mul => write!(fmt, "*"),
-            Div => write!(fmt, "/"),
-            Mod => write!(fmt, "%"),
-            Shl => write!(fmt, "<<"),
-            Shr => write!(fmt, ">>"),
-            And => write!(fmt, "&"),
-            Orr => write!(fmt, "|"),
-            Xor => write!(fmt, "^"),
+            Bi(Add) => write!(fmt, "+"),
+            Bi(Sub) => write!(fmt, "-"),
+            Bi(Mul) => write!(fmt, "*"),
+            Bi(Div) => write!(fmt, "/"),
+            Bi(Mod) => write!(fmt, "%"),
+            Bi(Shl) => write!(fmt, "<<"),
+            Bi(Shr) => write!(fmt, ">>"),
+            Bi(And) => write!(fmt, "&"),
+            Bi(Orr) => write!(fmt, "|"),
+            Bi(Xor) => write!(fmt, "^"),
             Sin => write!(fmt, "sin"),
             Cos => write!(fmt, "cos"),
             Tan => write!(fmt, "tan"),
@@ -528,6 +543,7 @@ pub fn format_beat(cmds: &[Cmd]) -> String {
 }
 
 pub fn random_beat(length: usize) -> Program {
+    use BiType::*;
     use Cmd::*;
     use VarType::*;
     let mut program = Vec::with_capacity(length);
@@ -537,16 +553,16 @@ pub fn random_beat(length: usize) -> Program {
         Var(MouseY),
         Var(ScreenX),
         Var(ScreenY),
-        Add,
-        Sub,
-        Mul,
-        Div,
-        Mod,
-        Shr,
-        Shl,
-        And,
-        Orr,
-        Xor,
+        Bi(Add),
+        Bi(Sub),
+        Bi(Mul),
+        Bi(Div),
+        Bi(Mod),
+        Bi(Shr),
+        Bi(Shl),
+        Bi(And),
+        Bi(Orr),
+        Bi(Xor),
     ];
 
     let mut stack_size = 0;
@@ -577,41 +593,32 @@ pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
     let mut cmds = program.cmds.clone();
     use Cmd::*;
     for cmd in cmds.iter_mut() {
-        if mutation_chance < rand::thread_rng().gen_range(0.0, 1.0) {
+        if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
             *cmd = match cmd {
                 Var(_) => Var(VarType::random()),
-                NumF(_) => Add,
-                NumI(_) => Add,
-                Hex(_) => Add,
-                Add => Add,
-                Sub => Add,
-                Mul => Add,
-                Div => Add,
-                Mod => Add,
-                Shl => Add,
-                Shr => Add,
-                And => Add,
-                Orr => Add,
-                Xor => Add,
-                Sin => Add,
-                Cos => Add,
-                Tan => Add,
-                Pow => Add,
-                AddF => Add,
-                SubF => Add,
-                MulF => Add,
-                DivF => Add,
-                ModF => Add,
-                Lt => Add,
-                Gt => Add,
-                Leq => Add,
-                Geq => Add,
-                Eq => Add,
-                Neq => Add,
-                Cond => Add,
-                Arr(_) => Add,
-                Meta(_, _) => Add,
-                Comment(_) => Add,
+                NumF(_) => unimplemented!("Not used in random_beat!"),
+                NumI(_) => unimplemented!("Not used in random_beat!"),
+                Hex(_) => unimplemented!("Not used in random_beat!"),
+                Bi(_) => Bi(BiType::random()),
+                Sin => unimplemented!("Not used in random_beat!"),
+                Cos => unimplemented!("Not used in random_beat!"),
+                Tan => unimplemented!("Not used in random_beat!"),
+                Pow => unimplemented!("Not used in random_beat!"),
+                AddF => unimplemented!("Not used in random_beat!"),
+                SubF => unimplemented!("Not used in random_beat!"),
+                MulF => unimplemented!("Not used in random_beat!"),
+                DivF => unimplemented!("Not used in random_beat!"),
+                ModF => unimplemented!("Not used in random_beat!"),
+                Lt => unimplemented!("Not used in random_beat!"),
+                Gt => unimplemented!("Not used in random_beat!"),
+                Leq => unimplemented!("Not used in random_beat!"),
+                Geq => unimplemented!("Not used in random_beat!"),
+                Eq => unimplemented!("Not used in random_beat!"),
+                Neq => unimplemented!("Not used in random_beat!"),
+                Cond => unimplemented!("Not used in random_beat!"),
+                Arr(_) => unimplemented!("Not used in random_beat!"),
+                Meta(_, _) => unimplemented!("Not used in random_beat!"),
+                Comment(_) => unimplemented!("Not used in random_beat!"),
             }
         }
     }

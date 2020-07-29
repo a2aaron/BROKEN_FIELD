@@ -51,3 +51,6 @@ my sy - sx % my % sy mx | >>
 
 UPSHIFT
 t sy - t + sx ^ sy my my ^ >> ^
+
+TRELLFOLD
+mx t * sy sx & / sy ^ mx % sx t | my sy | mx t & >> & -

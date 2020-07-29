@@ -21,6 +21,7 @@ const BYTEBEAT_HEIGHT: usize = 1024;
 const PIXEL_SIZE: usize = 32;
 const INITIAL_SPEED: usize = 500;
 const PROGRAM_LENGTH: usize = 20;
+const MUTATION_CHANCE: f32 = 3.0 / PROGRAM_LENGTH as f32;
 fn main() {
     println!("BROKEN_FIELD_START");
     let canvas = Canvas::new(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -231,9 +232,10 @@ impl BytebeatState {
             Restart => (),
             Next => self.index = (self.index + 1).min(self.bytebeats.len() - 1),
             Prev => self.index = self.index.saturating_sub(1),
-            Mutate => self
-                .bytebeats
-                .push(bytebeat::mutate(&self.bytebeats[self.index], 0.1)),
+            Mutate => self.bytebeats.push(bytebeat::mutate(
+                &self.bytebeats[self.index],
+                MUTATION_CHANCE,
+            )),
             VerySlower => self.speed /= 2,
             Slower => self.speed -= 1,
             Faster => self.speed += 1,
