@@ -1,46 +1,37 @@
+use rand::distributions::{Distribution, Standard};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rand::Rng;
 use std::collections::HashMap;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum VarType {
-    Frame,
-    MouseX,
-    MouseY,
-    ScreenX,
-    ScreenY,
+macro_rules! impl_distribution {
+    ($EnumName:ident {$($variant:ident),*}) => {
+        #[derive(Copy, Clone, Debug, PartialEq)]
+        pub enum $EnumName {
+            $($variant),*
+        }
+
+        impl Distribution<$EnumName> for Standard {
+            fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> $EnumName {
+                use $EnumName::*;
+                *[$($variant),*]
+                    .choose(rng)
+                    .unwrap()
+            }
+        }
+    };
 }
 
-impl VarType {
-    fn random() -> VarType {
-        use VarType::*;
-        *[Frame, MouseX, MouseY, ScreenX, ScreenY]
-            .choose(&mut thread_rng())
-            .unwrap()
+impl_distribution! {
+    VarType {
+        Frame, MouseX, MouseY, ScreenX, ScreenY
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum BiType {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Shl,
-    Shr,
-    And,
-    Orr,
-    Xor,
-}
-
-impl BiType {
-    fn random() -> BiType {
-        use BiType::*;
-        *[Add, Sub, Mul, Div, Mod, Shl, Shr, And, Orr, Xor]
-            .choose(&mut thread_rng())
-            .unwrap()
+impl_distribution! {
+    BiType {
+        Add, Sub, Mul, Div, Mod,
+        Shl, Shr, And, Orr, Xor
     }
 }
 
@@ -597,11 +588,11 @@ pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
     for cmd in cmds.iter_mut() {
         if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
             *cmd = match cmd {
-                Var(_) => Var(VarType::random()),
+                Var(_) => Var(rand::thread_rng().gen()),
                 NumF(_) => unimplemented!("Not used in random_beat!"),
                 NumI(_) => unimplemented!("Not used in random_beat!"),
                 Hex(_) => unimplemented!("Not used in random_beat!"),
-                Bi(_) => Bi(BiType::random()),
+                Bi(_) => Bi(rand::thread_rng().gen()),
                 Sin => unimplemented!("Not used in random_beat!"),
                 Cos => unimplemented!("Not used in random_beat!"),
                 Tan => unimplemented!("Not used in random_beat!"),
