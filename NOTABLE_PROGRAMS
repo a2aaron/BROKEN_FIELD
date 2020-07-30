@@ -54,3 +54,11 @@ t sy - t + sx ^ sy my my ^ >> ^
 
 TRELLFOLD
 mx t * sy sx & / sy ^ mx % sx t | my sy | mx t & >> & -
+
+FIRE_SHARDS
+t sx + sy - mx ^ sx / sx * t - my - t * sx / sy /
+
+POND_RIPPLES
+sx 32 /. 1.0 -. cos t 150 /. +. 128  *.
+sy 32 /. 0.5 +. sin t 170 /. +. 128 *. ^
+

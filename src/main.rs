@@ -10,13 +10,14 @@ use pixel_canvas::{
 };
 use rand::Rng;
 use rayon::prelude::*;
+use std::io::Read;
 
 // the actual size, in pixels of the window to display
-const WINDOW_WIDTH: usize = 1024;
-const WINDOW_HEIGHT: usize = 1024;
+const WINDOW_WIDTH: usize = 512;
+const WINDOW_HEIGHT: usize = 512;
 // the internal size, in "pixels" of the bytebeat to render
-const BYTEBEAT_WIDTH: usize = 1024;
-const BYTEBEAT_HEIGHT: usize = 1024;
+const BYTEBEAT_WIDTH: usize = 512;
+const BYTEBEAT_HEIGHT: usize = 512;
 // the size of pixels for a brainfuck program
 const PIXEL_SIZE: usize = 32;
 const INITIAL_SPEED: usize = 500;
@@ -34,15 +35,12 @@ fn main() {
                 Event::WindowEvent { event, .. } => {
                     if let Some(control) = Controls::from_event(event) {
                         state.bytebeat.handle_input(control);
-                        match control {
-                            Controls::Faster
-                            | Controls::VeryFaster
-                            | Controls::Slower
-                            | Controls::VerySlower => println!(
-                                "Speed = {} (t = {})",
-                                state.bytebeat.speed, state.bytebeat.frame
-                            ),
-                            _ => (),
+                    }
+
+                    if let WindowEvent::Focused(true) = event {
+                        match state.reload() {
+                            Ok(_) => println!("Reloaded successfully!"),
+                            Err(err) => println!("Error: {}", err),
                         }
                     }
                 }
@@ -140,6 +138,16 @@ impl State {
             mouse: MouseState::new(),
         }
     }
+
+    fn reload(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = std::fs::File::open("a.bytebeat")?;
+        let mut program = String::new();
+        file.read_to_string(&mut program)?;
+        let program = bytebeat::parse_beat(&program).map_err(|err| format!("{}", err))?;
+        let program = bytebeat::compile(program).map_err(|err| format!("{}", err))?;
+        self.bytebeat.insert_program(program);
+        Ok(())
+    }
 }
 
 struct Brainfuck {
@@ -228,11 +236,11 @@ impl BytebeatState {
     fn handle_input(&mut self, control: Controls) {
         use Controls::*;
         match control {
-            New => self.bytebeats.push(bytebeat::random_beat(PROGRAM_LENGTH)),
+            New => self.insert_program(bytebeat::random_beat(PROGRAM_LENGTH)),
             Restart => (),
             Next => self.index = (self.index + 1).min(self.bytebeats.len() - 1),
             Prev => self.index = self.index.saturating_sub(1),
-            Mutate => self.bytebeats.push(bytebeat::mutate(
+            Mutate => self.insert_program(bytebeat::mutate(
                 &self.bytebeats[self.index],
                 MUTATION_CHANCE,
             )),
@@ -242,9 +250,11 @@ impl BytebeatState {
             VeryFaster => self.speed *= 2,
         }
 
-        // Go to the current bytebeat
+        // Print current speed
         match control {
-            New | Mutate => self.index = self.bytebeats.len() - 1,
+            Faster | VeryFaster | Slower | VerySlower => {
+                println!("Speed = {} (t = {})", self.speed, self.frame)
+            }
             _ => (),
         }
 
@@ -284,6 +294,12 @@ impl BytebeatState {
             );
 
         render_image(image, self.image_data.as_ref());
+    }
+
+    // Insert a program into the bytebeat history and go to it.
+    fn insert_program(&mut self, program: bytebeat::Program) {
+        self.bytebeats.push(program);
+        self.index = self.bytebeats.len() - 1;
     }
 }
 
