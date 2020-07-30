@@ -8,7 +8,6 @@ use pixel_canvas::{
     },
     Canvas, Color, Image,
 };
-use rand::Rng;
 use rayon::prelude::*;
 use std::io::Read;
 

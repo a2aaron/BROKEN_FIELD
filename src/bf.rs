@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use pixel_canvas::{Color, Image};
-use rand::Rng;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 
 const MAX_STEPS: usize = 10000;
 const MEMORY_BEHAVIOR: MemoryBehavior = MemoryBehavior::Wrapping(INITAL_MEMORY);
@@ -248,7 +248,7 @@ pub fn random_bf(length: usize) -> Program {
     let choices = &[Plus, Minus, Left, Right, StartLoop, EndLoop]; // &[Plus, Minus, Left, Right, StartLoop, EndLoop, Input, Output];
 
     while program.len() < length || num_open_braces != 0 {
-        let mut bf_char = *rand::thread_rng().choose(choices).unwrap();
+        let mut bf_char = *choices.choose(&mut thread_rng()).unwrap();
 
         // Avoid adding an end loop if there is no matching start loop
         if num_open_braces <= 0 && bf_char == EndLoop {

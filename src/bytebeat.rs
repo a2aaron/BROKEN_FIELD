@@ -1,3 +1,5 @@
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -13,8 +15,8 @@ pub enum VarType {
 impl VarType {
     fn random() -> VarType {
         use VarType::*;
-        *rand::thread_rng()
-            .choose(&[Frame, MouseX, MouseY, ScreenX, ScreenY])
+        *[Frame, MouseX, MouseY, ScreenX, ScreenY]
+            .choose(&mut thread_rng())
             .unwrap()
     }
 }
@@ -36,8 +38,8 @@ pub enum BiType {
 impl BiType {
     fn random() -> BiType {
         use BiType::*;
-        *rand::thread_rng()
-            .choose(&[Add, Sub, Mul, Div, Mod, Shl, Shr, And, Orr, Xor])
+        *[Add, Sub, Mul, Div, Mod, Shl, Shr, And, Orr, Xor]
+            .choose(&mut thread_rng())
             .unwrap()
     }
 }
@@ -569,7 +571,7 @@ pub fn random_beat(length: usize) -> Program {
 
     // force programs to end with one single value (produces better programs this way)
     while program.len() < length || stack_size != 1 {
-        let cmd = rand::thread_rng().choose(cmds).unwrap().clone();
+        let cmd = cmds.choose(&mut thread_rng()).unwrap().clone();
         let stack_change = cmd.stack_change();
 
         // Avoid causing an underflowed stack
