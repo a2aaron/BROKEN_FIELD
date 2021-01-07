@@ -23,9 +23,7 @@ macro_rules! impl_distribution {
 }
 
 impl_distribution! {
-    VarType {
-        Frame, MouseX, MouseY, ScreenX, ScreenY
-    }
+    VarType { Frame, MouseX, MouseY, ScreenX, ScreenY }
 }
 
 impl_distribution! {
@@ -35,28 +33,42 @@ impl_distribution! {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Cmd {
-    Var(VarType),
+impl_distribution! {
+    TrigType { Sin, Cos, Tan }
+}
+
+impl_distribution! {
+    BiFloatType { Pow, AddF, SubF, MulF, DivF, ModF }
+}
+
+impl_distribution! {
+    CompType { Lt, Gt, Leq, Geq, Eq, Neq }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum LiteralType {
     NumF(f64),
     NumI(i64),
     Hex(i64),
+}
+
+impl Distribution<LiteralType> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> LiteralType {
+        use LiteralType::*;
+        *[NumF(rng.gen()), NumI(rng.gen()), Hex(rng.gen())]
+            .choose(rng)
+            .unwrap()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Cmd {
+    Var(VarType),
+    Literal(LiteralType),
     Bi(BiType),
-    Sin,
-    Cos,
-    Tan,
-    Pow,
-    AddF,
-    SubF,
-    MulF,
-    DivF,
-    ModF,
-    Lt,
-    Gt,
-    Leq,
-    Geq,
-    Eq,
-    Neq,
+    Trig(TrigType),
+    BiFloat(BiFloatType),
+    Comp(CompType),
     Cond,
     Arr(usize),
     Meta(String, String),
@@ -68,12 +80,12 @@ impl Cmd {
     fn stack_change(&self) -> isize {
         use Cmd::*;
         match *self {
-            Var(_) | NumF(_) | NumI(_) | Hex(_) => 1,
+            Var(_) | Literal(_) => 1,
             // These have no runtime effect
             Meta(_, _) | Comment(_) => 0,
             // These all pop 1 value off the stack and push 1
             // value back on, so the net effect is no stack change
-            Sin | Cos | Tan => 0,
+            Trig(_) => 0,
             // Arr(x) pops a value off the stack (called the index)
             // then pops x more values off the stack. Finally, it
             // pushes one value back onto the stack based on the index
@@ -81,8 +93,8 @@ impl Cmd {
             Arr(x) => -saturating_as_isize(x),
             Cond => -2,
             Bi(_) => -1,
-            Pow | AddF | SubF | MulF | DivF | ModF => -1,
-            Lt | Gt | Leq | Geq | Eq | Neq => -1,
+            BiFloat(_) => -1,
+            Comp(_) => -1,
         }
     }
 }
@@ -315,8 +327,12 @@ pub fn eval_beat<T: Into<Val>>(
     screen_x: T,
     screen_y: T,
 ) -> Val {
+    use BiFloatType::*;
     use BiType::*;
     use Cmd::*;
+    use CompType::*;
+    use LiteralType::*;
+    use TrigType::*;
     use VarType::*;
     let t = t.into();
     let mouse_x = mouse_x.into();
@@ -332,9 +348,9 @@ pub fn eval_beat<T: Into<Val>>(
             Var(MouseY) => stack_op!(stack { } => mouse_y),
             Var(ScreenX) => stack_op!(stack { } => screen_x),
             Var(ScreenY) => stack_op!(stack { } => screen_y),
-            NumF(y) => stack_op!( stack { } => y),
-            NumI(y) => stack_op!( stack { } => y),
-            Hex(y) => stack_op!( stack { } => y),
+            Literal(NumF(y)) => stack_op!( stack { } => y),
+            Literal(NumI(y)) => stack_op!( stack { } => y),
+            Literal(Hex(y)) => stack_op!( stack { } => y),
             Bi(Add) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_add(b)),
             Bi(Sub) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_sub(b)),
             Bi(Mul) => stack_op!(stack { a: i64, b: i64 } => a.wrapping_mul(b)),
@@ -355,25 +371,25 @@ pub fn eval_beat<T: Into<Val>>(
             Bi(And) => stack_op!(stack { a: i64, b: i64 } => a & b),
             Bi(Orr) => stack_op!(stack { a: i64, b: i64 } => a | b),
             Bi(Xor) => stack_op!(stack { a: i64, b: i64 } => a ^ b),
-            Sin => stack_op!(stack { a: f64 } => a.sin()),
-            Cos => stack_op!(stack { a: f64 } => a.cos()),
-            Tan => stack_op!(stack { a: f64 } => a.tan()),
-            Pow => stack_op!(stack { a: f64, b: f64 } => a.powf(b)),
-            AddF => stack_op!(stack { a: f64, b: f64 } => a + b),
-            SubF => stack_op!(stack { a: f64, b: f64 } => a - b),
-            MulF => stack_op!(stack { a: f64, b: f64 } => a * b),
-            DivF => stack_op!(stack { a: f64, b: f64 } => {
+            Trig(Sin) => stack_op!(stack { a: f64 } => a.sin()),
+            Trig(Cos) => stack_op!(stack { a: f64 } => a.cos()),
+            Trig(Tan) => stack_op!(stack { a: f64 } => a.tan()),
+            BiFloat(Pow) => stack_op!(stack { a: f64, b: f64 } => a.powf(b)),
+            BiFloat(AddF) => stack_op!(stack { a: f64, b: f64 } => a + b),
+            BiFloat(SubF) => stack_op!(stack { a: f64, b: f64 } => a - b),
+            BiFloat(MulF) => stack_op!(stack { a: f64, b: f64 } => a * b),
+            BiFloat(DivF) => stack_op!(stack { a: f64, b: f64 } => {
                 if b == 0.0 { 0.0 } else { a / b }
             }),
-            ModF => stack_op!(stack { a: f64, b: f64 } => {
+            BiFloat(ModF) => stack_op!(stack { a: f64, b: f64 } => {
                 if b == 0.0 { 0.0 } else { a % b }
             }),
-            Lt => stack_op!(stack { a: Val, b: Val } => a < b),
-            Gt => stack_op!(stack { a: Val, b: Val } => a > b),
-            Leq => stack_op!(stack { a: Val, b: Val } => a <= b),
-            Geq => stack_op!(stack { a: Val, b: Val } => a >= b),
-            Eq => stack_op!(stack { a: Val, b: Val } => a == b),
-            Neq => stack_op!(stack { a: Val, b: Val } => a != b),
+            Comp(Lt) => stack_op!(stack { a: Val, b: Val } => a < b),
+            Comp(Gt) => stack_op!(stack { a: Val, b: Val } => a > b),
+            Comp(Leq) => stack_op!(stack { a: Val, b: Val } => a <= b),
+            Comp(Geq) => stack_op!(stack { a: Val, b: Val } => a >= b),
+            Comp(Eq) => stack_op!(stack { a: Val, b: Val } => a == b),
+            Comp(Neq) => stack_op!(stack { a: Val, b: Val } => a != b),
             Cond => stack_op!(stack { a: Val, b: Val, cond: bool } => {
                 if cond { a } else { b }
             }),
@@ -397,9 +413,13 @@ pub fn eval_beat<T: Into<Val>>(
 }
 
 pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
+    use BiFloatType::*;
     use BiType::*;
     use Cmd::*;
+    use CompType::*;
+    use LiteralType::*;
     use ParseError::*;
+    use TrigType::*;
     use VarType::*;
     text.split_whitespace()
         .enumerate()
@@ -419,21 +439,21 @@ pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
             "&" => Ok(Bi(And)),
             "|" => Ok(Bi(Orr)),
             "^" => Ok(Bi(Xor)),
-            "sin" => Ok(Sin),
-            "cos" => Ok(Cos),
-            "tan" => Ok(Tan),
-            "pow" => Ok(Pow),
-            "+." => Ok(AddF),
-            "-." => Ok(SubF),
-            "*." => Ok(MulF),
-            "/." => Ok(DivF),
-            "%." => Ok(ModF),
-            "<" => Ok(Lt),
-            ">" => Ok(Gt),
-            "<=" => Ok(Leq),
-            ">=" => Ok(Geq),
-            "==" => Ok(Eq),
-            "!=" => Ok(Neq),
+            "sin" => Ok(Trig(Sin)),
+            "cos" => Ok(Trig(Cos)),
+            "tan" => Ok(Trig(Tan)),
+            "pow" => Ok(BiFloat(Pow)),
+            "+." => Ok(BiFloat(AddF)),
+            "-." => Ok(BiFloat(SubF)),
+            "*." => Ok(BiFloat(MulF)),
+            "/." => Ok(BiFloat(DivF)),
+            "%." => Ok(BiFloat(ModF)),
+            "<" => Ok(Comp(Lt)),
+            ">" => Ok(Comp(Gt)),
+            "<=" => Ok(Comp(Leq)),
+            ">=" => Ok(Comp(Geq)),
+            "==" => Ok(Comp(Eq)),
+            "!=" => Ok(Comp(Neq)),
             "?" => Ok(Cond),
             x if x.starts_with('[') => x[1..].parse().map(Arr).map_err(|_| BadArr(x, i)),
             x if x.starts_with('!') && x.contains(':') => {
@@ -446,12 +466,19 @@ pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
             x if x.starts_with('#') => Ok(Comment(x[1..].into())),
             x if x.starts_with("0x") => i64::from_str_radix(&x[2..], 16)
                 .map(Hex)
+                .map(Literal)
                 .map_err(|_| UnknownToken(x, i)),
             x => {
                 if x.contains('.') {
-                    x.parse().map(NumF).map_err(|_| UnknownToken(x, i))
+                    x.parse()
+                        .map(NumF)
+                        .map(Literal)
+                        .map_err(|_| UnknownToken(x, i))
                 } else {
-                    x.parse().map(NumI).map_err(|_| UnknownToken(x, i))
+                    x.parse()
+                        .map(NumI)
+                        .map(Literal)
+                        .map_err(|_| UnknownToken(x, i))
                 }
             }
         })
@@ -476,8 +503,12 @@ impl<'a> std::fmt::Display for ParseError<'a> {
 
 impl std::fmt::Display for Cmd {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use BiFloatType::*;
         use BiType::*;
         use Cmd::*;
+        use CompType::*;
+        use LiteralType::*;
+        use TrigType::*;
         use VarType::*;
         match *self {
             Var(Frame) => write!(fmt, "t"),
@@ -485,7 +516,7 @@ impl std::fmt::Display for Cmd {
             Var(MouseY) => write!(fmt, "my"),
             Var(ScreenX) => write!(fmt, "sx"),
             Var(ScreenY) => write!(fmt, "sy"),
-            NumF(y) => {
+            Literal(NumF(y)) => {
                 let buf = format!("{}", y);
                 if buf.contains('.') {
                     write!(fmt, "{}", buf)
@@ -493,8 +524,8 @@ impl std::fmt::Display for Cmd {
                     write!(fmt, "{}.0", buf)
                 }
             }
-            NumI(y) => write!(fmt, "{}", y),
-            Hex(y) => write!(fmt, "0x{:X}", y), // Write out as 0xHEX
+            Literal(NumI(y)) => write!(fmt, "{}", y),
+            Literal(Hex(y)) => write!(fmt, "0x{:X}", y), // Write out as 0xHEX
             Bi(Add) => write!(fmt, "+"),
             Bi(Sub) => write!(fmt, "-"),
             Bi(Mul) => write!(fmt, "*"),
@@ -505,21 +536,21 @@ impl std::fmt::Display for Cmd {
             Bi(And) => write!(fmt, "&"),
             Bi(Orr) => write!(fmt, "|"),
             Bi(Xor) => write!(fmt, "^"),
-            Sin => write!(fmt, "sin"),
-            Cos => write!(fmt, "cos"),
-            Tan => write!(fmt, "tan"),
-            Pow => write!(fmt, "pow"),
-            AddF => write!(fmt, "+."),
-            SubF => write!(fmt, "-."),
-            MulF => write!(fmt, "*."),
-            DivF => write!(fmt, "/."),
-            ModF => write!(fmt, "%."),
-            Lt => write!(fmt, "<"),
-            Gt => write!(fmt, ">"),
-            Leq => write!(fmt, "<="),
-            Geq => write!(fmt, ">="),
-            Eq => write!(fmt, "=="),
-            Neq => write!(fmt, "!="),
+            Trig(Sin) => write!(fmt, "sin"),
+            Trig(Cos) => write!(fmt, "cos"),
+            Trig(Tan) => write!(fmt, "tan"),
+            BiFloat(Pow) => write!(fmt, "pow"),
+            BiFloat(AddF) => write!(fmt, "+."),
+            BiFloat(SubF) => write!(fmt, "-."),
+            BiFloat(MulF) => write!(fmt, "*."),
+            BiFloat(DivF) => write!(fmt, "/."),
+            BiFloat(ModF) => write!(fmt, "%."),
+            Comp(Lt) => write!(fmt, "<"),
+            Comp(Gt) => write!(fmt, ">"),
+            Comp(Leq) => write!(fmt, "<="),
+            Comp(Geq) => write!(fmt, ">="),
+            Comp(Eq) => write!(fmt, "=="),
+            Comp(Neq) => write!(fmt, "!="),
             Cond => write!(fmt, "?"),
             Arr(size) => write!(fmt, "[{}", size),
             Meta(ref k, ref v) => write!(fmt, "!{}:{}", k, v),
@@ -589,25 +620,11 @@ pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
         if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
             *cmd = match cmd {
                 Var(_) => Var(rand::thread_rng().gen()),
-                NumF(_) => unimplemented!("Not used in random_beat!"),
-                NumI(_) => unimplemented!("Not used in random_beat!"),
-                Hex(_) => unimplemented!("Not used in random_beat!"),
+                Literal(_) => Literal(rand::thread_rng().gen()),
                 Bi(_) => Bi(rand::thread_rng().gen()),
-                Sin => unimplemented!("Not used in random_beat!"),
-                Cos => unimplemented!("Not used in random_beat!"),
-                Tan => unimplemented!("Not used in random_beat!"),
-                Pow => unimplemented!("Not used in random_beat!"),
-                AddF => unimplemented!("Not used in random_beat!"),
-                SubF => unimplemented!("Not used in random_beat!"),
-                MulF => unimplemented!("Not used in random_beat!"),
-                DivF => unimplemented!("Not used in random_beat!"),
-                ModF => unimplemented!("Not used in random_beat!"),
-                Lt => unimplemented!("Not used in random_beat!"),
-                Gt => unimplemented!("Not used in random_beat!"),
-                Leq => unimplemented!("Not used in random_beat!"),
-                Geq => unimplemented!("Not used in random_beat!"),
-                Eq => unimplemented!("Not used in random_beat!"),
-                Neq => unimplemented!("Not used in random_beat!"),
+                Trig(_) => Trig(rand::thread_rng().gen()),
+                BiFloat(_) => BiFloat(rand::thread_rng().gen()),
+                Comp(_) => Comp(rand::thread_rng().gen()),
                 Cond => unimplemented!("Not used in random_beat!"),
                 Arr(_) => unimplemented!("Not used in random_beat!"),
                 Meta(_, _) => unimplemented!("Not used in random_beat!"),
