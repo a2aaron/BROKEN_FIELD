@@ -83,6 +83,10 @@ enum Controls {
     Slower,
     Faster,
     VeryFaster,
+    MoveUp,
+    MoveLeft,
+    MoveDown,
+    MoveRight,
 }
 
 impl Controls {
@@ -116,6 +120,10 @@ impl Controls {
                 Z => Some(Prev),
                 X => Some(Next),
                 M => Some(Mutate),
+                W => Some(MoveUp),
+                A => Some(MoveLeft),
+                S => Some(MoveDown),
+                D => Some(MoveRight),
                 _ => None,
             },
             _ => None,
@@ -138,6 +146,7 @@ impl State {
         }
     }
 
+    /// Attempt to load a bytebeat from file. If the bytebeat fails to parse or compile, an error is returned.
     fn reload(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut file = std::fs::File::open("a.bytebeat")?;
         let mut program = String::new();
@@ -182,6 +191,7 @@ impl Brainfuck {
             Slower => self.speed = self.speed.saturating_sub(1),
             Faster => self.speed += 1,
             VeryFaster => self.speed = (self.speed * 2).max(2_000_000),
+            MoveUp | MoveLeft | MoveDown | MoveRight => (), // Not used for BF programs.
         }
 
         match control {
@@ -211,6 +221,8 @@ struct BytebeatState {
     pub index: usize,
     pub frame: i64,
     pub speed: i64,
+    pub key_x: i64,
+    pub key_y: i64,
 }
 
 impl BytebeatState {
@@ -229,6 +241,8 @@ impl BytebeatState {
             index: 0,
             frame: 0,
             speed: 1,
+            key_x: 0,
+            key_y: 0,
         }
     }
 
@@ -247,12 +261,19 @@ impl BytebeatState {
             Slower => self.speed -= 1,
             Faster => self.speed += 1,
             VeryFaster => self.speed *= 2,
+            MoveUp => self.key_y += 1,
+            MoveLeft => self.key_x -= 1,
+            MoveDown => self.key_y -= 1,
+            MoveRight => self.key_x += 1,
         }
 
-        // Print current speed
+        // Print output
         match control {
             Faster | VeryFaster | Slower | VerySlower => {
                 println!("Speed = {} (t = {})", self.speed, self.frame)
+            }
+            MoveLeft | MoveRight | MoveUp | MoveDown => {
+                println!("Position: x = {} y = {}", self.key_x, self.key_y)
             }
             _ => (),
         }
@@ -263,6 +284,8 @@ impl BytebeatState {
                 self.frame = 0;
                 self.speed = 1;
                 println!("{}", self.bytebeats[self.index]);
+                self.key_x = 0;
+                self.key_y = 0;
             }
             _ => (),
         }
@@ -271,6 +294,8 @@ impl BytebeatState {
     fn render(&mut self, image: &mut Image, mouse: &MouseState) {
         let program = &self.bytebeats[self.index];
         let t = self.frame;
+        let key_x = self.key_x;
+        let key_y = self.key_y;
         self.image_data
             .par_chunks_mut(BYTEBEAT_WIDTH)
             .enumerate()
@@ -286,6 +311,8 @@ impl BytebeatState {
                             mouse.y as i64,
                             screen_x as i64,
                             screen_y as i64,
+                            key_x,
+                            key_y,
                         )
                         .into();
                     }

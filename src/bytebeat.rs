@@ -4,6 +4,9 @@ use rand::thread_rng;
 use rand::Rng;
 use std::collections::HashMap;
 
+// Implement the Distribution trait for the given enum. We randomly select from
+// all of the available variants. This only works if none of the variants have
+// any associated data.
 macro_rules! impl_distribution {
     ($EnumName:ident {$($variant:ident),*}) => {
         #[derive(Copy, Clone, Debug, PartialEq)]
@@ -23,7 +26,7 @@ macro_rules! impl_distribution {
 }
 
 impl_distribution! {
-    VarType { Frame, MouseX, MouseY, ScreenX, ScreenY }
+    VarType { Frame, MouseX, MouseY, ScreenX, ScreenY, KeyboardX, KeyboardY }
 }
 
 impl_distribution! {
@@ -76,8 +79,22 @@ pub enum Cmd {
 }
 
 impl Cmd {
-    /// Represents
+    /// Represents the amount that the stack will change due to this opcode.
+    /// A positive value means the stack will increase in size, while a negative
+    /// value means the stack will decrease in size. A value of zero means the
+    /// stack size remains the same. Note that the stack can change size _during_
+    /// the execution of an opcode. For example, `Trig(Sin)` has a stack change
+    /// of zero, but pops a value and then pushes on a value.
     fn stack_change(&self) -> isize {
+        // Cast a usize to an isize, saturating if need be.
+        fn saturating_as_isize(num: usize) -> isize {
+            if num > isize::max_value() as usize {
+                isize::max_value()
+            } else {
+                num as isize
+            }
+        }
+
         use Cmd::*;
         match *self {
             Var(_) | Literal(_) => 1,
@@ -91,14 +108,18 @@ impl Cmd {
             // pushes one value back onto the stack based on the index
             // Thus the net effect of Arr is to reduce the stack size by x.
             Arr(x) => -saturating_as_isize(x),
+            // Cond pops 3 values and pushes back one
             Cond => -2,
+            // These pop two values and push back one value
             Bi(_) => -1,
             BiFloat(_) => -1,
+            // Compare pops two values and pushes back one
             Comp(_) => -1,
         }
     }
 }
 
+/// A list of commands which forms a valid program.
 #[derive(Debug)]
 pub struct Program {
     cmds: Vec<Cmd>,
@@ -126,9 +147,14 @@ pub fn compile(cmds: Vec<Cmd>) -> Result<Program, CompileError> {
         }
     }
     // Validate the bytebeat by checking that the stack does not get popped when empty
-    let mut stack_size = 0 as isize;
+    let mut stack_size = 0;
     let mut error_kind = None;
     for (index, cmd) in cmds.iter().enumerate() {
+        // TODO: Check if this works generally. This might not work on instructions
+        // that have a minimum stack size.
+        // If the stack would end up with a negitive size, then the stack clearly
+        // has underflowed. We also check if it equals zero, since any instruction
+        // that does something useful will need to pop at least one instruction
         if stack_size + cmd.stack_change() <= 0 {
             error_kind = Some(ErrorKind::UnderflowedStack { index, stack_size });
             break;
@@ -150,23 +176,18 @@ pub fn compile(cmds: Vec<Cmd>) -> Result<Program, CompileError> {
     }
 }
 
-fn saturating_as_isize(num: usize) -> isize {
-    if num > isize::max_value() as usize {
-        isize::max_value()
-    } else {
-        num as isize
-    }
-}
-
 impl std::fmt::Display for Program {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(fmt, "{}", format_beat(&self.cmds))
     }
 }
 
+/// A program which fails to compile.
 #[derive(Debug, PartialEq)]
 pub struct CompileError {
+    /// The program in question
     cmds: Vec<Cmd>,
+    /// The error associated with the program.
     error_kind: ErrorKind,
 }
 
@@ -184,12 +205,6 @@ impl CompileError {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum ErrorKind {
-    UnderflowedStack { index: usize, stack_size: isize },
-    EmptyProgram,
-}
-
 impl<'a> std::fmt::Display for CompileError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         use ErrorKind::*;
@@ -204,9 +219,20 @@ impl<'a> std::fmt::Display for CompileError {
     }
 }
 
+// Describe an error for a malformed program.
+#[derive(Debug, PartialEq)]
+pub enum ErrorKind {
+    UnderflowedStack { index: usize, stack_size: isize },
+    EmptyProgram,
+}
+
+/// A bytebeat value which is either an i64 or f64. This type allows for integer
+/// and float values to coexist
 #[derive(Clone, Copy, Debug)]
 pub enum Val {
+    /// A float value (f64 specifically)
     F(f64),
+    /// An integer value (i64 specifically)
     I(i64),
 }
 
@@ -318,6 +344,10 @@ macro_rules! stack_op {
     }
 }
 
+/// Evaluate a given program with the given values.
+/// `stack` takes a mutable reference to a vector, but does not actually care\
+/// about the contents of that vector. It will clear anything that was previously
+/// in the vector.
 pub fn eval_beat<T: Into<Val>>(
     stack: &mut Vec<Val>,
     program: &Program,
@@ -326,6 +356,8 @@ pub fn eval_beat<T: Into<Val>>(
     mouse_y: T,
     screen_x: T,
     screen_y: T,
+    key_x: T,
+    key_y: T,
 ) -> Val {
     use BiFloatType::*;
     use BiType::*;
@@ -339,8 +371,11 @@ pub fn eval_beat<T: Into<Val>>(
     let mouse_y = mouse_y.into();
     let screen_x = screen_x.into();
     let screen_y = screen_y.into();
+    let key_x = key_x.into();
+    let key_y = key_y.into();
+    // Clear the stack, we don't actually care about the contents of it.
     stack.clear();
-    // let mut stack: Vec<Val> = Vec::new();
+    // Run the program!
     for cmd in &program.cmds {
         match *cmd {
             Var(Frame) => stack_op!(stack { } => t),
@@ -348,6 +383,8 @@ pub fn eval_beat<T: Into<Val>>(
             Var(MouseY) => stack_op!(stack { } => mouse_y),
             Var(ScreenX) => stack_op!(stack { } => screen_x),
             Var(ScreenY) => stack_op!(stack { } => screen_y),
+            Var(KeyboardX) => stack_op!(stack { } => key_x),
+            Var(KeyboardY) => stack_op!(stack { } => key_y),
             Literal(NumF(y)) => stack_op!( stack { } => y),
             Literal(NumI(y)) => stack_op!( stack { } => y),
             Literal(Hex(y)) => stack_op!( stack { } => y),
@@ -412,6 +449,7 @@ pub fn eval_beat<T: Into<Val>>(
     stack.pop().unwrap()
 }
 
+/// Attempt to parse a text string containing a bytebeat.
 pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
     use BiFloatType::*;
     use BiType::*;
@@ -429,6 +467,8 @@ pub fn parse_beat(text: &str) -> Result<Vec<Cmd>, ParseError> {
             "my" => Ok(Var(MouseY)),
             "sx" => Ok(Var(ScreenX)),
             "sy" => Ok(Var(ScreenY)),
+            "kx" => Ok(Var(KeyboardX)),
+            "ky" => Ok(Var(KeyboardY)),
             "+" => Ok(Bi(Add)),
             "-" => Ok(Bi(Sub)),
             "*" => Ok(Bi(Mul)),
@@ -516,6 +556,8 @@ impl std::fmt::Display for Cmd {
             Var(MouseY) => write!(fmt, "my"),
             Var(ScreenX) => write!(fmt, "sx"),
             Var(ScreenY) => write!(fmt, "sy"),
+            Var(KeyboardX) => write!(fmt, "kx"),
+            Var(KeyboardY) => write!(fmt, "ky"),
             Literal(NumF(y)) => {
                 let buf = format!("{}", y);
                 if buf.contains('.') {
@@ -559,6 +601,7 @@ impl std::fmt::Display for Cmd {
     }
 }
 
+/// Format a slice of commands into a user-consumable string.
 pub fn format_beat(cmds: &[Cmd]) -> String {
     cmds.iter()
         .map(|cmd| format!("{}", cmd))
@@ -566,6 +609,7 @@ pub fn format_beat(cmds: &[Cmd]) -> String {
         .join(" ")
 }
 
+/// Generate a random valid program of approximately `length` instructions.
 pub fn random_beat(length: usize) -> Program {
     use BiType::*;
     use Cmd::*;
@@ -577,6 +621,8 @@ pub fn random_beat(length: usize) -> Program {
         Var(MouseY),
         Var(ScreenX),
         Var(ScreenY),
+        Var(KeyboardX),
+        Var(KeyboardY),
         Bi(Add),
         Bi(Sub),
         Bi(Mul),
@@ -613,6 +659,10 @@ pub fn random_beat(length: usize) -> Program {
     compile(program).expect("Expected valid program")
 }
 
+/// Randomly alter a program. Each command in the program has `mutation_chance`
+/// probability of being changed to another command. Note that this will
+/// keep commands within the same "family". For example, Add may become Sub, but
+/// will never become Cond.
 pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
     let mut cmds = program.cmds.clone();
     use Cmd::*;

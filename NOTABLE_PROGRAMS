@@ -64,3 +64,16 @@ sy 32 /. 0.5 +. sin t 170 /. +. 128 *. ^
 
 DOUBLING_SLIDER
 t t t sx + ^ % t sy ^ | t % sx sx sx % % | mx +
+
+BENT_BRANCHES
+sx my & 127 sy * sx / + my % sx & 127 * t + 
+
+PANNELING
+23 sx t >> << sy << 23 t ^ my 23 23 sy mx ^ sx sy 23 t - ^ + ^ ^ ^ / / |
+
+SHIFTLESS
+my my sx 0 sy mx my | / 0 * % - - ^ sy ^ t + mx %
+
+SINLESS
+t mx sx - + t my sy - - | sin t *.
+
