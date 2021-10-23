@@ -258,9 +258,9 @@ impl From<f64> for Val {
     }
 }
 
-impl Into<bool> for Val {
-    fn into(self) -> bool {
-        match self {
+impl From<Val> for bool {
+    fn from(val: Val) -> Self {
+        match val {
             Val::F(x) if x == 0.0 => false,
             Val::I(0) => false,
             _ => true,
@@ -268,27 +268,27 @@ impl Into<bool> for Val {
     }
 }
 
-impl Into<i64> for Val {
-    fn into(self) -> i64 {
-        match self {
+impl From<Val> for i64 {
+    fn from(val: Val) -> Self {
+        match val {
             Val::F(x) => x as i64,
             Val::I(x) => x,
         }
     }
 }
 
-impl Into<f64> for Val {
-    fn into(self) -> f64 {
-        match self {
+impl From<Val> for f64 {
+    fn from(val: Val) -> Self {
+        match val {
             Val::F(x) => x,
             Val::I(x) => x as f64,
         }
     }
 }
 
-impl Into<u8> for Val {
-    fn into(self) -> u8 {
-        let x: i64 = self.into();
+impl From<Val> for u8 {
+    fn from(val: Val) -> Self {
+        let x: i64 = val.into();
         x as u8
     }
 }

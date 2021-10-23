@@ -82,6 +82,12 @@ impl BFState {
     }
 }
 
+impl Default for BFState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn wrapping_add(a: usize, b: isize, modulo: usize) -> usize {
     let x = a as isize + b;
     if x < 0 {
@@ -118,7 +124,7 @@ impl Program {
     }
 
     fn matching_loop(&self, i: usize) -> Option<usize> {
-        self.loop_dict.get(&i).map(|f| *f)
+        self.loop_dict.get(&i).copied()
     }
 }
 
@@ -156,9 +162,9 @@ pub fn execution_history(
     let mut state = BFState::new();
     let mut num_steps = 0;
 
-    while !halted(&state, &program) && num_steps <= MAX_STEPS {
+    while !halted(&state, program) && num_steps <= MAX_STEPS {
         let instr = program.get(state.program_pointer);
-        state.step(&program, input);
+        state.step(program, input);
 
         history.push((state.clone(), instr));
         num_steps += 1;
@@ -167,9 +173,9 @@ pub fn execution_history(
     history
 }
 
-pub fn interest_score(string: &Vec<i8>) -> usize {
+pub fn interest_score(string: &[i8]) -> usize {
     // charcters 0 thru 31 in ASCII are all unprintable and thus not very good
-    let all_unprintable = string.iter().all(|&x| 0 <= x && x <= 31);
+    let all_unprintable = string.iter().all(|&x| (0..=31).contains(&x));
     let all_same = string.iter().all(|&x| x == *string.first().unwrap_or(&0));
     let very_short = string.len() <= 5;
 
