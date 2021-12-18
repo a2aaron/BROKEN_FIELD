@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use evobf::bf;
 use evobf::bytebeat;
 
@@ -9,7 +11,6 @@ use pixel_canvas::{
     Canvas, Color, Image,
 };
 use rayon::prelude::*;
-use std::io::Read;
 
 // the actual size, in pixels of the window to display
 const WINDOW_WIDTH: usize = 512;
@@ -30,28 +31,30 @@ fn main() {
         .input(|info, state, event| {
             pixel_canvas::input::MouseState::handle_input(info, &mut state.mouse, event);
             // println!("new event {:?}", event);
-            match event {
-                Event::WindowEvent { event, .. } => {
-                    if let Some(control) = Controls::from_event(event) {
-                        state.bytebeat.handle_input(control);
-                    }
-
-                    if let WindowEvent::Focused(true) = event {
-                        match state.reload() {
-                            Ok(_) => println!("Reloaded successfully!"),
-                            Err(err) => println!("Error: {}", err),
-                        }
+            if let Event::WindowEvent { event, .. } = event {
+                // Handle typical input
+                if let Some(control) = Controls::from_event(event) {
+                    match control {
+                        Controls::ChangeToBF => state.active = Art::BF,
+                        Controls::ChangeToBytebeat => state.active = Art::Bytebeat,
+                        _ => state.handle_input(control),
                     }
                 }
-                _ => (),
+                // Live reload on window focus
+                if let WindowEvent::Focused(true) = event {
+                    match state.reload() {
+                        Ok(_) => println!("Reloaded successfully!"),
+                        Err(err) => println!("Error: {}", err),
+                    }
+                }
             }
             true
         });
 
     canvas.render(|state, image| {
         // let start = std::time::Instant::now();
-        state.bytebeat.render(image, &state.mouse);
-        state.bytebeat.frame += state.bytebeat.speed;
+        state.update();
+        state.render(image);
         // println!("Time: {:?}", start.elapsed());
         // for _ in 0..state.index {
         //     if !halted(&state.state, &state.program) {
@@ -87,6 +90,8 @@ enum Controls {
     MoveLeft,
     MoveDown,
     MoveRight,
+    ChangeToBF,
+    ChangeToBytebeat,
 }
 
 impl Controls {
@@ -124,6 +129,8 @@ impl Controls {
                 A => Some(MoveLeft),
                 S => Some(MoveDown),
                 D => Some(MoveRight),
+                Key1 => Some(ChangeToBF),
+                Key2 => Some(ChangeToBytebeat),
                 _ => None,
             },
             _ => None,
@@ -132,9 +139,10 @@ impl Controls {
 }
 
 struct State {
-    pub bytebeat: BytebeatState,
-    pub brainfuck: Brainfuck,
+    bytebeat: BytebeatState,
+    brainfuck: Brainfuck,
     pub mouse: MouseState,
+    pub active: Art,
 }
 
 impl State {
@@ -143,6 +151,31 @@ impl State {
             bytebeat: BytebeatState::new(),
             brainfuck: Brainfuck::new(),
             mouse: MouseState::new(),
+            active: Art::Bytebeat,
+        }
+    }
+
+    fn handle_input(&mut self, control: Controls) {
+        match self.active {
+            Art::BF => self.brainfuck.handle_input(control),
+            Art::Bytebeat => self.bytebeat.handle_input(control),
+        }
+    }
+
+    fn update(&mut self) {
+        match self.active {
+            Art::BF => self.brainfuck.step(),
+            Art::Bytebeat => self.bytebeat.update(&self.mouse),
+        }
+    }
+
+    fn render(&mut self, image: &mut Image) {
+        match self.active {
+            Art::BF => self.brainfuck.render(image),
+            Art::Bytebeat => {
+                self.bytebeat.render(image);
+                self.bytebeat.frame += self.bytebeat.speed;
+            }
         }
     }
 
@@ -158,6 +191,11 @@ impl State {
     }
 }
 
+enum Art {
+    BF,
+    Bytebeat,
+}
+
 struct Brainfuck {
     pub program: bf::Program,
     pub state: bf::BFState,
@@ -167,7 +205,6 @@ struct Brainfuck {
 
 impl Brainfuck {
     fn new() -> Brainfuck {
-        // let program = from_string("+[>+]");
         let program = bf::random_bf(PROGRAM_LENGTH);
         Brainfuck {
             program,
@@ -177,11 +214,22 @@ impl Brainfuck {
         }
     }
 
+    fn step(&mut self) {
+        for _ in 0..self.speed {
+            if !bf::halted(&self.state, &self.program) {
+                self.state.step(&self.program, self.input.as_mut());
+            } else {
+                break;
+            }
+        }
+    }
+
     fn handle_input(&mut self, control: Controls) {
         use Controls::*;
         match control {
             New => {
                 self.program = bf::random_bf(PROGRAM_LENGTH);
+                println!("{}", self.program);
             }
             Restart => (),
             Next => unimplemented!(),
@@ -191,19 +239,28 @@ impl Brainfuck {
             Slower => self.speed = self.speed.saturating_sub(1),
             Faster => self.speed += 1,
             VeryFaster => self.speed = (self.speed * 2).max(2_000_000),
-            MoveUp | MoveLeft | MoveDown | MoveRight => (), // Not used for BF programs.
+            _ => (), // Not used for BF programs.
         }
 
+        // Set up state on reset
         match control {
             New | Restart | Next | Prev | Mutate => {
                 self.state = bf::BFState::new();
-                self.speed = 1;
+                self.speed = INITIAL_SPEED;
+            }
+            _ => (),
+        }
+
+        // Print output
+        match control {
+            Faster | VeryFaster | Slower | VerySlower => {
+                println!("Speed = {}", self.speed)
             }
             _ => (),
         }
     }
 
-    fn render(&mut self, image: &mut Image) {
+    fn render(&self, image: &mut Image) {
         let instr = *self
             .program
             .instrs
@@ -227,10 +284,6 @@ struct BytebeatState {
 
 impl BytebeatState {
     fn new() -> BytebeatState {
-        // let bytebeat = bytebeat::compile(
-        //     bytebeat::parse_beat("t sy my - sx mx - ^ mx - my + /").expect("bepis"),
-        // )
-        // .expect("conk");
         let bytebeat = bytebeat::random_beat(PROGRAM_LENGTH);
         println!("{}", bytebeat);
 
@@ -265,6 +318,7 @@ impl BytebeatState {
             MoveLeft => self.key_x -= 1,
             MoveDown => self.key_y -= 1,
             MoveRight => self.key_x += 1,
+            _ => (),
         }
 
         // Print output
@@ -291,11 +345,13 @@ impl BytebeatState {
         }
     }
 
-    fn render(&mut self, image: &mut Image, mouse: &MouseState) {
+    fn update(&mut self, mouse: &MouseState) {
         let program = &self.bytebeats[self.index];
         let t = self.frame;
         let key_x = self.key_x;
         let key_y = self.key_y;
+
+        // Iterate over the image data, rendering the bytebeat to the internal image data
         self.image_data
             .par_chunks_mut(BYTEBEAT_WIDTH)
             .enumerate()
@@ -318,8 +374,9 @@ impl BytebeatState {
                     }
                 },
             );
-
-        render_image(image, self.image_data.as_ref());
+    }
+    fn render(&self, image: &mut Image) {
+        render_image(image, &self.image_data);
     }
 
     // Insert a program into the bytebeat history and go to it.

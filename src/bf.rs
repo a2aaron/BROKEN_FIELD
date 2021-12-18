@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -125,6 +126,12 @@ impl Program {
 
     fn matching_loop(&self, i: usize) -> Option<usize> {
         self.loop_dict.get(&i).copied()
+    }
+}
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", to_string(&self.instrs))
     }
 }
 
