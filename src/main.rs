@@ -20,7 +20,6 @@ const BYTEBEAT_WIDTH: usize = 512;
 const BYTEBEAT_HEIGHT: usize = 512;
 // the size of pixels for a brainfuck program
 const PIXEL_SIZE: usize = 32;
-const INITIAL_SPEED: usize = 500;
 const PROGRAM_LENGTH: usize = 20;
 const MUTATION_CHANCE: f32 = 3.0 / PROGRAM_LENGTH as f32;
 fn main() {
@@ -35,8 +34,8 @@ fn main() {
                 // Handle typical input
                 if let Some(control) = Controls::from_event(event) {
                     match control {
-                        Controls::ChangeToBF => state.active = Art::BF,
-                        Controls::ChangeToBytebeat => state.active = Art::Bytebeat,
+                        Controls::ChangeToBF => state.set_active(ArtType::BF),
+                        Controls::ChangeToBytebeat => state.set_active(ArtType::Bytebeat),
                         _ => state.handle_input(control),
                     }
                 }
@@ -52,26 +51,8 @@ fn main() {
         });
 
     canvas.render(|state, image| {
-        // let start = std::time::Instant::now();
         state.update();
         state.render(image);
-        // println!("Time: {:?}", start.elapsed());
-        // for _ in 0..state.index {
-        //     if !halted(&state.state, &state.program) {
-        //         state.state.step(&state.program, &mut state.input);
-        //     } else {
-        //         break;
-        //     }
-        // }
-        // render_bf(
-        //     image,
-        //     &state.state,
-        //     *state
-        //         .program
-        //         .instrs
-        //         .get(state.state.program_pointer)
-        //         .unwrap_or(&BFChar::Plus),
-        // );
     });
 }
 
@@ -139,177 +120,65 @@ impl Controls {
 }
 
 struct State {
-    bytebeat: BytebeatState,
-    brainfuck: Brainfuck,
-    pub mouse: MouseState,
-    pub active: Art,
+    // The speed that the art should play at. exact units are art dependent
+    speed: i64,
+    // Which type of art to create.
+    art_type: ArtType,
+    // A list of the available art pieces
+    arts: Vec<Box<dyn Art>>,
+    // Which art should be displayed.
+    art_index: usize,
+    // The state of the mouse
+    mouse: MouseState,
+    // The x and y keyboard positions
+    key_x: i64,
+    key_y: i64,
 }
 
 impl State {
     fn new() -> State {
         State {
-            bytebeat: BytebeatState::new(),
-            brainfuck: Brainfuck::new(),
             mouse: MouseState::new(),
-            active: Art::Bytebeat,
-        }
-    }
-
-    fn handle_input(&mut self, control: Controls) {
-        match self.active {
-            Art::BF => self.brainfuck.handle_input(control),
-            Art::Bytebeat => self.bytebeat.handle_input(control),
-        }
-    }
-
-    fn update(&mut self) {
-        match self.active {
-            Art::BF => self.brainfuck.step(),
-            Art::Bytebeat => self.bytebeat.update(&self.mouse),
-        }
-    }
-
-    fn render(&mut self, image: &mut Image) {
-        match self.active {
-            Art::BF => self.brainfuck.render(image),
-            Art::Bytebeat => {
-                self.bytebeat.render(image);
-                self.bytebeat.frame += self.bytebeat.speed;
-            }
-        }
-    }
-
-    /// Attempt to load a bytebeat from file. If the bytebeat fails to parse or compile, an error is returned.
-    fn reload(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut file = std::fs::File::open("a.bytebeat")?;
-        let mut program = String::new();
-        file.read_to_string(&mut program)?;
-        let program = bytebeat::parse_beat(&program).map_err(|err| format!("{}", err))?;
-        let program = bytebeat::compile(program).map_err(|err| format!("{}", err))?;
-        self.bytebeat.insert_program(program);
-        Ok(())
-    }
-}
-
-enum Art {
-    BF,
-    Bytebeat,
-}
-
-struct Brainfuck {
-    pub program: bf::Program,
-    pub state: bf::BFState,
-    pub speed: usize,
-    pub input: Box<dyn Iterator<Item = i8>>,
-}
-
-impl Brainfuck {
-    fn new() -> Brainfuck {
-        let program = bf::random_bf(PROGRAM_LENGTH);
-        Brainfuck {
-            program,
-            state: bf::BFState::new(),
-            speed: INITIAL_SPEED,
-            input: Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8)),
-        }
-    }
-
-    fn step(&mut self) {
-        for _ in 0..self.speed {
-            if !bf::halted(&self.state, &self.program) {
-                self.state.step(&self.program, self.input.as_mut());
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn handle_input(&mut self, control: Controls) {
-        use Controls::*;
-        match control {
-            New => {
-                self.program = bf::random_bf(PROGRAM_LENGTH);
-                println!("{}", self.program);
-            }
-            Restart => (),
-            Next => unimplemented!(),
-            Prev => unimplemented!(),
-            Mutate => unimplemented!(),
-            VerySlower => self.speed /= 2,
-            Slower => self.speed = self.speed.saturating_sub(1),
-            Faster => self.speed += 1,
-            VeryFaster => self.speed = (self.speed * 2).max(2_000_000),
-            _ => (), // Not used for BF programs.
-        }
-
-        // Set up state on reset
-        match control {
-            New | Restart | Next | Prev | Mutate => {
-                self.state = bf::BFState::new();
-                self.speed = INITIAL_SPEED;
-            }
-            _ => (),
-        }
-
-        // Print output
-        match control {
-            Faster | VeryFaster | Slower | VerySlower => {
-                println!("Speed = {}", self.speed)
-            }
-            _ => (),
-        }
-    }
-
-    fn render(&self, image: &mut Image) {
-        let instr = *self
-            .program
-            .instrs
-            .get(self.state.program_pointer)
-            .unwrap_or(&bf::BFChar::Plus);
-
-        render_bf(image, &self.state, instr);
-    }
-}
-
-struct BytebeatState {
-    pub stack: Vec<bytebeat::Val>,
-    pub bytebeats: Vec<bytebeat::Program>,
-    pub image_data: Box<[u8]>,
-    pub index: usize,
-    pub frame: i64,
-    pub speed: i64,
-    pub key_x: i64,
-    pub key_y: i64,
-}
-
-impl BytebeatState {
-    fn new() -> BytebeatState {
-        let bytebeat = bytebeat::random_beat(PROGRAM_LENGTH);
-        println!("{}", bytebeat);
-
-        BytebeatState {
-            stack: Vec::with_capacity(PROGRAM_LENGTH),
-            bytebeats: vec![bytebeat],
-            image_data: vec![0; BYTEBEAT_WIDTH * BYTEBEAT_HEIGHT].into_boxed_slice(),
-            index: 0,
-            frame: 0,
+            art_type: ArtType::Bytebeat,
+            arts: vec![Box::new(BytebeatState::new_random())],
+            art_index: 0,
             speed: 1,
             key_x: 0,
             key_y: 0,
         }
     }
 
+    fn set_active(&mut self, art_type: ArtType) {
+        self.art_type = art_type;
+    }
+
+    fn reset(&mut self) {
+        self.speed = if self.art_type == ArtType::BF { 500 } else { 1 };
+        self.key_x = 0;
+        self.key_y = 0;
+        self.arts[self.art_index].reset();
+    }
+
+    fn new_art(&self) -> Box<dyn Art> {
+        match self.art_type {
+            ArtType::BF => Box::new(Brainfuck::new_random()) as Box<dyn Art>,
+            ArtType::Bytebeat => Box::new(BytebeatState::new_random()) as Box<dyn Art>,
+        }
+    }
+
+    fn insert_art(&mut self, art: Box<dyn Art>) {
+        self.arts.push(art);
+        self.art_index = self.arts.len() - 1;
+    }
+
     fn handle_input(&mut self, control: Controls) {
         use Controls::*;
         match control {
-            New => self.insert_program(bytebeat::random_beat(PROGRAM_LENGTH)),
-            Restart => (),
-            Next => self.index = (self.index + 1).min(self.bytebeats.len() - 1),
-            Prev => self.index = self.index.saturating_sub(1),
-            Mutate => self.insert_program(bytebeat::mutate(
-                &self.bytebeats[self.index],
-                MUTATION_CHANCE,
-            )),
+            New => self.insert_art(self.new_art()),
+            Restart => self.reset(),
+            Next => self.art_index = (self.art_index + 1).min(self.arts.len() - 1),
+            Prev => self.art_index = self.art_index.saturating_sub(1),
+            Mutate => self.insert_art(self.arts[self.art_index].mutate()),
             VerySlower => self.speed /= 2,
             Slower => self.speed -= 1,
             Faster => self.speed += 1,
@@ -324,33 +193,162 @@ impl BytebeatState {
         // Print output
         match control {
             Faster | VeryFaster | Slower | VerySlower => {
-                println!("Speed = {} (t = {})", self.speed, self.frame)
+                println!("Speed = {}", self.speed)
             }
             MoveLeft | MoveRight | MoveUp | MoveDown => {
                 println!("Position: x = {} y = {}", self.key_x, self.key_y)
             }
             _ => (),
         }
+    }
 
-        // "Reset" the current bytebeat
-        match control {
-            New | Restart | Next | Prev | Mutate => {
-                self.frame = 0;
-                self.speed = 1;
-                println!("{}", self.bytebeats[self.index]);
-                self.key_x = 0;
-                self.key_y = 0;
-            }
-            _ => (),
+    fn update(&mut self) {
+        let input = Inputs {
+            key_x: self.key_x,
+            key_y: self.key_y,
+            mouse_x: self.mouse.x as i64,
+            mouse_y: self.mouse.y as i64,
+        };
+        self.arts[self.art_index].update(self.speed, input);
+    }
+
+    fn render(&mut self, image: &mut Image) {
+        self.arts[self.art_index].render(image);
+    }
+
+    /// Attempt to load a bytebeat from file. If the bytebeat fails to parse or compile, an error is returned.
+    fn reload(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = std::fs::File::open("a.bytebeat")?;
+        let mut program = String::new();
+        file.read_to_string(&mut program)?;
+        let art = if let Ok(bytebeat_program) = bytebeat::parse_beat(&program) {
+            let program = bytebeat::compile(bytebeat_program).map_err(|err| format!("{}", err))?;
+            Box::new(BytebeatState::new_from(program)) as Box<dyn Art>
+        } else {
+            let bf_program = bf::from_string(&program);
+            Box::new(Brainfuck::new_from(bf_program)) as Box<dyn Art>
+        };
+        self.insert_art(art);
+        Ok(())
+    }
+}
+
+struct Inputs {
+    key_x: i64,
+    key_y: i64,
+    mouse_x: i64,
+    mouse_y: i64,
+}
+
+#[derive(PartialEq, Eq)]
+enum ArtType {
+    BF,
+    Bytebeat,
+}
+
+trait Art {
+    // Reset the state of this Art to the beginning
+    fn reset(&mut self);
+    // Mutate this piece of Art, producing a similar but different piece of Art
+    fn mutate(&self) -> Box<dyn Art>;
+    // Update the internal state, called once per frame
+    fn update(&mut self, speed: i64, input: Inputs);
+    // Render the internal state to an Image
+    fn render(&self, image: &mut Image);
+}
+
+struct Brainfuck {
+    pub program: bf::Program,
+    pub state: bf::BFState,
+    pub input: Box<dyn Iterator<Item = i8>>,
+}
+
+impl Brainfuck {
+    fn new_from(program: bf::Program) -> Brainfuck {
+        println!("{}", program);
+
+        Brainfuck {
+            program,
+            state: bf::BFState::new(),
+            input: Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8)),
         }
     }
 
-    fn update(&mut self, mouse: &MouseState) {
-        let program = &self.bytebeats[self.index];
-        let t = self.frame;
-        let key_x = self.key_x;
-        let key_y = self.key_y;
+    fn new_random() -> Brainfuck {
+        let program = bf::random_bf(PROGRAM_LENGTH);
+        Brainfuck::new_from(program)
+    }
+}
 
+impl Art for Brainfuck {
+    fn reset(&mut self) {
+        self.state = bf::BFState::new();
+        self.input = Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8));
+    }
+
+    fn update(&mut self, speed: i64, _: Inputs) {
+        let speed = speed.clamp(0, 2_000_000) as usize;
+        for _ in 0..speed {
+            if !bf::halted(&self.state, &self.program) {
+                self.state.step(&self.program, self.input.as_mut());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn render(&self, image: &mut Image) {
+        let instr = *self
+            .program
+            .instrs
+            .get(self.state.program_pointer)
+            .unwrap_or(&bf::BFChar::Plus);
+
+        render_bf(image, &self.state, instr);
+    }
+
+    fn mutate(&self) -> Box<dyn Art> {
+        todo!()
+    }
+}
+
+struct BytebeatState {
+    pub program: bytebeat::Program,
+    pub image_data: Box<[u8]>,
+    pub frame: i64,
+}
+
+impl BytebeatState {
+    fn new_from(program: bytebeat::Program) -> BytebeatState {
+        println!("{}", program);
+
+        BytebeatState {
+            program,
+            image_data: vec![0; BYTEBEAT_WIDTH * BYTEBEAT_HEIGHT].into_boxed_slice(),
+            frame: 0,
+        }
+    }
+
+    fn new_random() -> BytebeatState {
+        BytebeatState::new_from(bytebeat::random_beat(PROGRAM_LENGTH))
+    }
+}
+
+impl Art for BytebeatState {
+    fn reset(&mut self) {
+        self.frame = 0;
+    }
+
+    fn mutate(&self) -> Box<dyn Art> {
+        Box::new(BytebeatState::new_from(bytebeat::mutate(
+            &self.program,
+            MUTATION_CHANCE,
+        )))
+    }
+
+    fn update(&mut self, speed: i64, inputs: Inputs) {
+        let t = self.frame;
+        let program = &self.program;
         // Iterate over the image data, rendering the bytebeat to the internal image data
         self.image_data
             .par_chunks_mut(BYTEBEAT_WIDTH)
@@ -363,30 +361,26 @@ impl BytebeatState {
                             stack,
                             program,
                             t,
-                            mouse.x as i64,
-                            mouse.y as i64,
+                            inputs.mouse_x,
+                            inputs.mouse_y,
                             screen_x as i64,
                             screen_y as i64,
-                            key_x,
-                            key_y,
+                            inputs.key_x,
+                            inputs.key_y,
                         )
                         .into();
                     }
                 },
             );
-    }
-    fn render(&self, image: &mut Image) {
-        render_image(image, &self.image_data);
+        self.frame += speed;
     }
 
-    // Insert a program into the bytebeat history and go to it.
-    fn insert_program(&mut self, program: bytebeat::Program) {
-        self.bytebeats.push(program);
-        self.index = self.bytebeats.len() - 1;
+    fn render(&self, image: &mut Image) {
+        render_bytebeat(image, &self.image_data);
     }
 }
 
-pub fn render_image(image: &mut Image, values: &[u8]) {
+pub fn render_bytebeat(image: &mut Image, values: &[u8]) {
     let width = image.width() as usize;
     let width_scale_factor = image.width() / BYTEBEAT_WIDTH;
     let height_scale_factor = image.height() / BYTEBEAT_HEIGHT;
