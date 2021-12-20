@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 
 const MAX_STEPS: usize = 10000;
 const MEMORY_BEHAVIOR: MemoryBehavior = MemoryBehavior::Wrapping(INITAL_MEMORY);
@@ -158,6 +158,30 @@ fn loop_dict(program: &[BFChar]) -> HashMap<usize, usize> {
     }
     debug_assert!(startloop_locs.is_empty());
     hashmap
+}
+
+pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
+    let mut instrs = program.instrs.clone();
+    for instr in instrs.iter_mut() {
+        if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
+            *instr = match instr {
+                BFChar::StartLoop => BFChar::StartLoop,
+                BFChar::EndLoop => BFChar::EndLoop,
+                _ => *[
+                    BFChar::Plus,
+                    BFChar::Minus,
+                    BFChar::Left,
+                    BFChar::Right,
+                    BFChar::Input,
+                    BFChar::Output,
+                ]
+                .choose(&mut rand::thread_rng())
+                .unwrap(),
+            };
+        }
+    }
+
+    Program::new(instrs)
 }
 
 pub fn execution_history(

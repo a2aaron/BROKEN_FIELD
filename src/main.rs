@@ -308,7 +308,8 @@ impl Art for Brainfuck {
     }
 
     fn mutate(&self) -> Box<dyn Art> {
-        todo!()
+        let program = bf::mutate(&self.program, MUTATION_CHANCE);
+        Box::new(Brainfuck::new_from(program)) as Box<dyn Art>
     }
 }
 
