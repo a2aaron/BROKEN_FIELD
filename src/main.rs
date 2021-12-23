@@ -140,7 +140,7 @@ impl State {
         State {
             mouse: MouseState::new(),
             art_type: ArtType::Bytebeat,
-            arts: vec![Box::new(BytebeatState::new_random())],
+            arts: vec![Box::new(BytebeatArt::new_random())],
             art_index: 0,
             speed: 1,
             key_x: 0,
@@ -161,8 +161,8 @@ impl State {
 
     fn new_art(&self) -> Box<dyn Art> {
         match self.art_type {
-            ArtType::BF => Box::new(Brainfuck::new_random()) as Box<dyn Art>,
-            ArtType::Bytebeat => Box::new(BytebeatState::new_random()) as Box<dyn Art>,
+            ArtType::BF => Box::new(BrainfuckArt::new_random()) as Box<dyn Art>,
+            ArtType::Bytebeat => Box::new(BytebeatArt::new_random()) as Box<dyn Art>,
         }
     }
 
@@ -223,10 +223,10 @@ impl State {
         file.read_to_string(&mut program)?;
         let art = if let Ok(bytebeat_program) = bytebeat::parse_beat(&program) {
             let program = bytebeat::compile(bytebeat_program).map_err(|err| format!("{}", err))?;
-            Box::new(BytebeatState::new_from(program)) as Box<dyn Art>
+            Box::new(BytebeatArt::new_from(program)) as Box<dyn Art>
         } else {
             let bf_program = bf::from_string(&program);
-            Box::new(Brainfuck::new_from(bf_program)) as Box<dyn Art>
+            Box::new(BrainfuckArt::new_from(bf_program)) as Box<dyn Art>
         };
         self.insert_art(art);
         Ok(())
@@ -257,30 +257,30 @@ trait Art {
     fn render(&self, image: &mut Image);
 }
 
-struct Brainfuck {
+struct BrainfuckArt {
     pub program: bf::Program,
     pub state: bf::BFState,
     pub input: Box<dyn Iterator<Item = i8>>,
 }
 
-impl Brainfuck {
-    fn new_from(program: bf::Program) -> Brainfuck {
+impl BrainfuckArt {
+    fn new_from(program: bf::Program) -> BrainfuckArt {
         println!("{}", program);
 
-        Brainfuck {
+        BrainfuckArt {
             program,
             state: bf::BFState::new(),
             input: Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8)),
         }
     }
 
-    fn new_random() -> Brainfuck {
+    fn new_random() -> BrainfuckArt {
         let program = bf::random_bf(PROGRAM_LENGTH);
-        Brainfuck::new_from(program)
+        BrainfuckArt::new_from(program)
     }
 }
 
-impl Art for Brainfuck {
+impl Art for BrainfuckArt {
     fn reset(&mut self) {
         self.state = bf::BFState::new();
         self.input = Box::new("Hello, world!".as_bytes().iter().cycle().map(|&b| b as i8));
@@ -309,39 +309,39 @@ impl Art for Brainfuck {
 
     fn mutate(&self) -> Box<dyn Art> {
         let program = bf::mutate(&self.program, MUTATION_CHANCE);
-        Box::new(Brainfuck::new_from(program)) as Box<dyn Art>
+        Box::new(BrainfuckArt::new_from(program)) as Box<dyn Art>
     }
 }
 
-struct BytebeatState {
+struct BytebeatArt {
     pub program: bytebeat::Program,
     pub image_data: Box<[u8]>,
     pub frame: i64,
 }
 
-impl BytebeatState {
-    fn new_from(program: bytebeat::Program) -> BytebeatState {
+impl BytebeatArt {
+    fn new_from(program: bytebeat::Program) -> BytebeatArt {
         println!("{}", program);
 
-        BytebeatState {
+        BytebeatArt {
             program,
             image_data: vec![0; BYTEBEAT_WIDTH * BYTEBEAT_HEIGHT].into_boxed_slice(),
             frame: 0,
         }
     }
 
-    fn new_random() -> BytebeatState {
-        BytebeatState::new_from(bytebeat::random_beat(PROGRAM_LENGTH))
+    fn new_random() -> BytebeatArt {
+        BytebeatArt::new_from(bytebeat::random_beat(PROGRAM_LENGTH))
     }
 }
 
-impl Art for BytebeatState {
+impl Art for BytebeatArt {
     fn reset(&mut self) {
         self.frame = 0;
     }
 
     fn mutate(&self) -> Box<dyn Art> {
-        Box::new(BytebeatState::new_from(bytebeat::mutate(
+        Box::new(BytebeatArt::new_from(bytebeat::mutate(
             &self.program,
             MUTATION_CHANCE,
         )))
