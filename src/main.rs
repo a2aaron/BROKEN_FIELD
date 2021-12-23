@@ -2,7 +2,9 @@ use std::io::Read;
 
 use broken_field::bf;
 use broken_field::bytebeat;
+use broken_field::fractal;
 
+use num_complex::Complex;
 use pixel_canvas::{
     input::{
         glutin::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode},
@@ -33,11 +35,7 @@ fn main() {
             if let Event::WindowEvent { event, .. } = event {
                 // Handle typical input
                 if let Some(control) = Controls::from_event(event) {
-                    match control {
-                        Controls::ChangeToBF => state.set_active(ArtType::BF),
-                        Controls::ChangeToBytebeat => state.set_active(ArtType::Bytebeat),
-                        _ => state.handle_input(control),
-                    }
+                    state.handle_input(control);
                 }
                 // Live reload on window focus
                 if let WindowEvent::Focused(true) = event {
@@ -71,8 +69,7 @@ enum Controls {
     MoveLeft,
     MoveDown,
     MoveRight,
-    ChangeToBF,
-    ChangeToBytebeat,
+    ChangeTo(ArtType),
 }
 
 impl Controls {
@@ -110,8 +107,9 @@ impl Controls {
                 A => Some(MoveLeft),
                 S => Some(MoveDown),
                 D => Some(MoveRight),
-                Key1 => Some(ChangeToBF),
-                Key2 => Some(ChangeToBytebeat),
+                Key1 => Some(ChangeTo(ArtType::BF)),
+                Key2 => Some(ChangeTo(ArtType::Bytebeat)),
+                Key3 => Some(ChangeTo(ArtType::Mandelbrot)),
                 _ => None,
             },
             _ => None,
@@ -163,6 +161,7 @@ impl State {
         match self.art_type {
             ArtType::BF => Box::new(BrainfuckArt::new_random()) as Box<dyn Art>,
             ArtType::Bytebeat => Box::new(BytebeatArt::new_random()) as Box<dyn Art>,
+            ArtType::Mandelbrot => Box::new(Mandelbrot::new()) as Box<dyn Art>,
         }
     }
 
@@ -187,7 +186,7 @@ impl State {
             MoveLeft => self.key_x -= 1,
             MoveDown => self.key_y -= 1,
             MoveRight => self.key_x += 1,
-            _ => (),
+            Controls::ChangeTo(art_type) => self.set_active(art_type),
         }
 
         // Print output
@@ -240,10 +239,11 @@ struct Inputs {
     mouse_y: i64,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum ArtType {
     BF,
     Bytebeat,
+    Mandelbrot,
 }
 
 trait Art {
@@ -378,6 +378,76 @@ impl Art for BytebeatArt {
 
     fn render(&self, image: &mut Image) {
         render_bytebeat(image, &self.image_data);
+    }
+}
+
+struct ComplexCoordinateGrid {
+    corner: Complex<f64>,
+    height: f64,
+    width: f64,
+}
+
+impl ComplexCoordinateGrid {
+    fn new() -> ComplexCoordinateGrid {
+        ComplexCoordinateGrid {
+            corner: Complex { re: -2.0, im: -2.0 },
+            height: 4.0,
+            width: 4.0,
+        }
+    }
+
+    fn to_coordinate(&self, x_percent: f64, y_percent: f64) -> Complex<f64> {
+        let re = self.corner.re + self.width * x_percent;
+        let im = self.corner.im + self.height * y_percent;
+        Complex { re, im }
+    }
+}
+
+struct Mandelbrot {
+    grid: ComplexCoordinateGrid,
+}
+
+impl Mandelbrot {
+    fn new() -> Mandelbrot {
+        Mandelbrot {
+            grid: ComplexCoordinateGrid::new(),
+        }
+    }
+
+    fn get_color(&self, width: usize, height: usize, x: usize, y: usize) -> Color {
+        let x_percent = x as f64 / width as f64;
+        let y_percent = y as f64 / height as f64;
+        let complex = self.grid.to_coordinate(x_percent, y_percent);
+        match fractal::evaluate_mandelbrot(complex, 100, 2.0) {
+            None => Color::BLACK,
+            Some(iter) => {
+                let iter_percent = iter as f64 / 100.0;
+                let iter_percent = 5000.0 * iter_percent * iter_percent;
+                Color::rgb(0, 0, (256.0 * (iter_percent % 1.0)) as u8)
+            }
+        }
+    }
+}
+
+impl Art for Mandelbrot {
+    fn reset(&mut self) {
+        self.grid = ComplexCoordinateGrid::new();
+    }
+
+    fn mutate(&self) -> Box<dyn Art> {
+        Box::new(Mandelbrot::new())
+    }
+
+    fn update(&mut self, speed: i64, input: Inputs) {}
+
+    fn render(&self, image: &mut Image) {
+        let width = image.width();
+        let height = image.height();
+        for (y, row) in image.chunks_mut(width).enumerate() {
+            for (x, pixel) in row.iter_mut().enumerate() {
+                *pixel = self.get_color(width, height, x, y);
+            }
+        }
     }
 }
 

@@ -77,3 +77,5 @@ my my sx 0 sy mx my | / 0 * % - - ^ sy ^ t + mx %
 SINLESS
 t mx sx - + t my sy - - | sin t *.
 
+DISINTEGRATING_SIGNAL
+t sy % ky sx sy sx sx ky >> + * << sy % sx - t kx + | + ^
