@@ -1,5 +1,5 @@
 [package]
-name = "evobf"
+name = "broken_field"
 version = "0.1.0"
 authors = ["Aaron Kofsky <a2aarontothe2@gmail.com>"]
 edition = "2018"
