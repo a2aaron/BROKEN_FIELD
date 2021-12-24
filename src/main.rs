@@ -455,18 +455,21 @@ pub fn render_bytebeat(image: &mut Image, values: &[u8]) {
     let width = image.width() as usize;
     let width_scale_factor = image.width() / BYTEBEAT_WIDTH;
     let height_scale_factor = image.height() / BYTEBEAT_HEIGHT;
-    for (y, row) in image.chunks_mut(width).enumerate() {
-        for (x, pixel) in row.iter_mut().enumerate() {
-            let screen_x = x / width_scale_factor;
-            let screen_y = y / height_scale_factor;
-            let value = values[screen_y * BYTEBEAT_WIDTH + screen_x];
-            *pixel = Color {
-                r: 0,     //value.wrapping_mul(63),
-                g: value, //value.wrapping_mul(65),
-                b: 0,     //value.wrapping_mul(67),
-            };
-        }
-    }
+    image
+        .par_chunks_mut(width)
+        .enumerate()
+        .for_each(|(y, row)| {
+            row.par_iter_mut().enumerate().for_each(|(x, pixel)| {
+                let screen_x = x / width_scale_factor;
+                let screen_y = y / height_scale_factor;
+                let value = values[screen_y * BYTEBEAT_WIDTH + screen_x];
+                *pixel = Color {
+                    r: 0,
+                    g: value,
+                    b: 0,
+                };
+            })
+        })
 }
 
 pub fn render_bf(image: &mut Image, state: &bf::BFState, instr: bf::BFChar) {
