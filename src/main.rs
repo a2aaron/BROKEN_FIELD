@@ -255,6 +255,8 @@ trait Art {
     fn update(&mut self, speed: i64, input: Inputs);
     // Render the internal state to an Image
     fn render(&self, image: &mut Image);
+    // Handle an input (optional, defaults to doing nothing)
+    fn handle_input(&mut self, _control: Controls) {}
 }
 
 struct BrainfuckArt {
@@ -405,12 +407,14 @@ impl ComplexCoordinateGrid {
 
 struct Mandelbrot {
     grid: ComplexCoordinateGrid,
+    color_scheme: colorgrad::Gradient,
 }
 
 impl Mandelbrot {
     fn new() -> Mandelbrot {
         Mandelbrot {
             grid: ComplexCoordinateGrid::new(),
+            color_scheme: colorgrad::rainbow(),
         }
     }
 
@@ -422,8 +426,8 @@ impl Mandelbrot {
             None => Color::BLACK,
             Some(iter) => {
                 let iter_percent = iter as f64 / 100.0;
-                let iter_percent = 5000.0 * iter_percent * iter_percent;
-                Color::rgb(0, 0, (256.0 * (iter_percent % 1.0)) as u8)
+                let (r, g, b, _) = self.color_scheme.repeat_at(iter_percent).rgba_u8();
+                Color { r, g, b }
             }
         }
     }
@@ -438,7 +442,7 @@ impl Art for Mandelbrot {
         Box::new(Mandelbrot::new())
     }
 
-    fn update(&mut self, speed: i64, input: Inputs) {}
+    fn update(&mut self, _speed: i64, _input: Inputs) {}
 
     fn render(&self, image: &mut Image) {
         let width = image.width();
