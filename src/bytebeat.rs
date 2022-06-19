@@ -667,7 +667,7 @@ pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
     let mut cmds = program.cmds.clone();
     use Cmd::*;
     for cmd in cmds.iter_mut() {
-        if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
+        if mutation_chance > rand::thread_rng().gen_range(0.0..1.0) {
             *cmd = match cmd {
                 Var(_) => Var(rand::thread_rng().gen()),
                 Literal(_) => Literal(rand::thread_rng().gen()),

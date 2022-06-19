@@ -163,7 +163,7 @@ fn loop_dict(program: &[BFChar]) -> HashMap<usize, usize> {
 pub fn mutate(program: &Program, mutation_chance: f32) -> Program {
     let mut instrs = program.instrs.clone();
     for instr in instrs.iter_mut() {
-        if mutation_chance > rand::thread_rng().gen_range(0.0, 1.0) {
+        if mutation_chance > rand::thread_rng().gen_range(0.0..1.0) {
             *instr = match instr {
                 BFChar::StartLoop => BFChar::StartLoop,
                 BFChar::EndLoop => BFChar::EndLoop,
