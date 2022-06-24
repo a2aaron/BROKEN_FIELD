@@ -1,45 +1,62 @@
-Brainfuck art experiments.
+Art Experiments
 
-Currently, this program generates random, short brainfuck programs and runs them
-on an input of "Hello, world!" and then outputs any interesting results. Here's
-a sample of some of the output!
+An art program using `pixel-canvas` which can currently display three types of art.
 
+# IMPORTANT - FLICKER WARNING
+Some of the art that BROKEN_FIELD generates can be extremely flickery or flashy. Please be careful if you are photosensitive.
 
+# Overview
+
+BROKEN_FIELD is an art program which procedurally generates different types of artistic visualizations. These art programs can be interactive with.
+
+## Controls
+Left Click - Generate New Art
+Right Click - Restart Current Art
+
+Right Arrow - Run Art faster
+Left Arrow - Run Art slower
+Up - Run Art much faster (double current speed)
+Down - Run Art much slower (halve current speed)
+
+Z - See previous Art
+X - See nex tArt
+M - Generate New Art, mutating the current Art to produce the new Art
+W/A/S/D - Keyboard Controls (only affects Bytebeat art)
+
+1/2/3 - Switch generated Art type to Brainfuck/Bytebeat/Mandelbrot set respectively.
+
+Tne window will hot-reload whatever is in `a.bytebeat` and attempt to parse it as a Bytebeat or Brainfuck program if possible.
+
+# Brainfuck Mode
+This mode visualizes the memory of a Brainfuck program. The Brainfuck program is given a standard input that loops "Hello, World!" forever and runs on a looping tape of 256 cells. The visualization simply displays the values in memory as large colored squares, which an outline on the currently selected square.
+
+Examples:
+
+[Link](https://youtube.com/watch?v=K_weN-BL4G8)
+
+# Bytebeat Mode
+This mode uses a stack based language to interactively display interesting art. Each pixel has the same program run for it, and the top value remaining on the stack after the program is executed is used to color the pixel a certain shade of green.
+
+The commands are:
 ```
--.[[[<>]+.+[,.+.-+,.]]]         �☺HIelmlop, !woprlmd!"
-->.,>+>.-<+,,>+[<.+-]
-.>>,-+<>>.[.,,->,<+.]
--,[,]<[<+-][<],-[>.+]
-,,[,+<+.]+>,,[.->-,[]]          nnq."yqtnf#☻☻☻☻☻
-<[].-..[[.]+[,>>[[-]]]]         �������������������������������������������������
-+-<<.>+....>-<+.,,>.            ☺☺☺☺☻�
-,.[-+>.<.],>+++,,<,[]           HHHHHHHHHHHHHHH
--[<>,,,.+[,[<..].<+.]]          l���������������������������������������������
-<+,.+,-+..--[.>.<-.<]           Heecbbaa``__^^]]\\[[ZZYYXX
-+>.<,>>,,.+,>>-<,[[.]]          loooooooooooooooooooooooooooooooooooooooooo
-++,+<.[,>.<.[[+]-][[]]]         Ie
-->[]>,[,.>+,++-,..,.]           ello,wwordd!
->,--<->+-,.[<.<.+-,+]           e��mmmmpp--!!xxppssmm
--+-<.<>>+>[]>+[[[]<+]]          �
-,.,++<>>,,.<[>-,.-<<]           Hl
--,+,+.<.,+.->+...>..            ffm☺☺☺
->.,+.,-.[<-.>][.><<<]           Id�������������������
-,->,->-.[,<..[-]]+-.            �dd
-.+<<>,<.>--[--,,[<]]            ☺
-.,-.+><-[+->>-]>[,><]           G
--[--,[.,<.-,+]].-<><            Hemlp,!wprmd"☺☺☺☺☺
-.,+<,>.>+>+<<[-,[<<-]]
->,.<<>++++,.[>.,+<.]            Heememepe-e!exepesemeee"e☺
-<,>,,,.<+<<+,<[-.+,.]           ln,+ ▼wvonrqlkdc!
-,,.>,>.[],[+,<>...--]           eooo,,,   wwwooorrrlllddd!!!
-<-[,<<>],>-,.,--<<.<            lH
-[>+],+.,,,<<-->..,,>            I
-,,+[<<.,,[-.>+,,<].[]]          fkjihgfedcba`
-+[[->]<><]-[[,[.<<.<]]]         HHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+t - time counter, increments or decrements each frame at whatever speed the speed is currently set to
+sx/sy - Screen X and Y coordinates
+mx/my - Mouse X and Y coordinates
+kx/ky - Keyboard X and Y coordinates
++ - * / - Basic integer arithmetic
+% - Modulo
+>> << - Bitshift left/right
+& | ^ - Bitwise AND/OR/XOR
+sin cos tan pow - Trignometic functinos
++. -. *. /. %. - Floating point versions of the artithmetic operations
+< > <= >= == != - Comparators
+? - Conditional, pop 3 values off of the stack called `a, b, cond`. If `cond` is true, push back `a`, else push back `b`
 ```
 
-(constants are, in the above sample
-```rust 
-const PROGRAM_LENGTH: usize = 20;
-const MAX_STEPS: usize = 100;
-const NUM_PROGRAMS: usize = 100;```)
+Some examples:
+[Link 1](https://www.youtube.com/watch?v=Q91BZyxkqSY)
+[Link 2](https://youtube.com/watch?v=fMa5Ox0A05k)
+[Link 3](https://youtube.com/watch?v=DsSI1pCNn7c)
+
+# Mandelbrot Mode
+Current a WIP, but is meant to display random, interesting portions of the Mandelbrot set.
