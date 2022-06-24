@@ -31,8 +31,8 @@ Tne window will hot-reload whatever is in `a.bytebeat` and attempt to parse it a
 This mode visualizes the memory of a Brainfuck program. The Brainfuck program is given a standard input that loops "Hello, World!" forever and runs on a looping tape of 256 cells. The visualization simply displays the values in memory as large colored squares, which an outline on the currently selected square.
 
 Examples:
-[Image](screenshots/bf%20-%20example1.png)
-[Image](screenshots/bf%20-%20example2.png)
+![Image](screenshots/bf%20-%20example1.png)
+![Image](screenshots/bf%20-%20example2.png)
 
 [Video](https://youtube.com/watch?v=K_weN-BL4G8)
 
@@ -56,10 +56,10 @@ sin cos tan pow - Trignometic functinos
 ```
 
 Some examples:
-[Image](screenshots/bb%20-%20example1.png)
-[Image](screenshots/bb%20-%20example2.png)
-[Image](screenshots/bb%20-%20example3.png)
-[Image](screenshots/bb%20-%20example4.png)
+![Image](screenshots/bb%20-%20example1.png)
+![Image](screenshots/bb%20-%20example2.png)
+![Image](screenshots/bb%20-%20example3.png)
+![Image](screenshots/bb%20-%20example4.png)
 
 
 [Video 1](https://www.youtube.com/watch?v=Q91BZyxkqSY)
