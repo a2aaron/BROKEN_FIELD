@@ -7,7 +7,7 @@ Some of the art that BROKEN_FIELD generates can be extremely flickery or flashy.
 
 # Overview
 
-BROKEN_FIELD is an art program which procedurally generates different types of artistic visualizations. These art programs can be interactive with.
+BROKEN_FIELD is an art program which procedurally generates different types of artistic visualizations. These art programs can be interacted with via keyboard & mouse.
 
 ## Controls
 Left Click - Generate New Art
@@ -19,7 +19,7 @@ Up - Run Art much faster (double current speed)
 Down - Run Art much slower (halve current speed)
 
 Z - See previous Art
-X - See nex tArt
+X - See next Art
 M - Generate New Art, mutating the current Art to produce the new Art
 W/A/S/D - Keyboard Controls (only affects Bytebeat art)
 
