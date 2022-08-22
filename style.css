@@ -1,0 +1,27 @@
+* { box-sizing: border-box; }
+body { max-width: 1200px; margin: 0 auto; padding: 0.5em; }
+
+f-row, .row { display: flex; flex-direction: row; }
+f-col, .col { display: flex; flex-direction: column; }
+f-sp, .spacer { flex: 1; }
+
+.gap-1 { gap: 0.5em; }
+.gap-2 { gap: 1em; }
+
+.hidden { display: none; }
+
+h1 { margin: 0 }
+canvas {
+    height: 512px;
+    width: 512px;
+    border: 1px solid black;
+}
+textarea { 
+    width: 512px;
+    height: 100px;
+}
+
+main {
+    display: flex;
+    flex-direction: column;
+}
