@@ -1,6 +1,4 @@
-/** @type {{[key: string]: {[key: string]: string | Error | null}}} */
-let ERROR_MESSAGES = {};
-let ERROR_ELEMENT = getTypedElementById(HTMLPreElement, "error-msg");
+let ERROR_ELEMENT = document.getElementById("error-msg");
 
 /**
  * Show the error messages associated with the given template.
@@ -15,7 +13,11 @@ export function render_error_messages(...errors) {
         message += "\n\n";
     }
 
-    ERROR_ELEMENT.innerText = message.trimEnd();
+    if (ERROR_ELEMENT != null) {
+        ERROR_ELEMENT.innerText = message.trimEnd();
+    } else {
+        console.log("error-msg element is missing!");
+    }
 }
 
 /**

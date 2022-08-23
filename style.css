@@ -25,3 +25,8 @@ main {
     display: flex;
     flex-direction: column;
 }
+
+#error-msg {
+    color: red;
+    word-wrap: normal;
+}
