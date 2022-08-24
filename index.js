@@ -11,6 +11,16 @@ const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn")
 const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
 const share_button = getTypedElementById(HTMLButtonElement, "share-btn");
 const share_display = getTypedElementById(HTMLElement, "share-confirm");
+
+const coord_display = getTypedElementById(HTMLElement, "coord-display");
+
+/**
+ * @type {ProgramInfo | null}
+ */
+let BYTEBEAT_PROGRAM_INFO = null;
+let MOUSE_X = 0;
+let MOUSE_Y = 0;
+
 /**
  * Load the given shader into the given context
  * @param {WebGL2RenderingContext} gl the context to load the shader into
@@ -173,14 +183,21 @@ function compileBytebeat(gl, bytebeat, init_frame) {
 
    uniform float wrap_value;
    uniform int t;
-   uniform float tf;
+   uniform float t_f;
+
+   uniform int mx;
+   uniform int my;
+   uniform float mx_f;
+   uniform float my_f;
 
    uniform vec3 color;
    out vec4 fragColor;
 
    void main() {
-     int sx = int(gl_FragCoord.x - 0.5);
-     int sy = int(gl_FragCoord.y - 0.5);
+     float sx_f = gl_FragCoord.x - 0.5;
+     float sy_f = gl_FragCoord.y - 0.5;
+     int sx = int(sx_f);
+     int sy = int(sy_f);
      int value = ${bytebeat};
      float value_out = float(value % int(wrap_value)) / wrap_value;
      fragColor = vec4(value_out * color, 1.0);
@@ -206,6 +223,10 @@ function compileBytebeat(gl, bytebeat, init_frame) {
          wrap_value: gl.getUniformLocation(shaderProgram, "wrap_value"),
          time: gl.getUniformLocation(shaderProgram, "t"),
          time_float: gl.getUniformLocation(shaderProgram, "tf"),
+         mouse_x: gl.getUniformLocation(shaderProgram, "mx"),
+         mouse_y: gl.getUniformLocation(shaderProgram, "my"),
+         mouse_x_float: gl.getUniformLocation(shaderProgram, "mx_f"),
+         mouse_y_float: gl.getUniformLocation(shaderProgram, "my_f"),
       },
       attribs: {
          position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
@@ -223,20 +244,23 @@ function compileBytebeat(gl, bytebeat, init_frame) {
  * @param {number} wrap_value
  * @param {number} time
  * @param {import("./util.js").RGBColor} color
+ * @param {number} mouse_x
+ * @param {number} mouse_y
  */
-function setUniforms(gl, programInfo, wrap_value, color, time) {
+function setUniforms(gl, programInfo, wrap_value, color, time, mouse_x, mouse_y) {
    gl.useProgram(programInfo.program);
    gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
    gl.uniform3fv(programInfo.uniforms.color, color.toFloat());
+
    gl.uniform1i(programInfo.uniforms.time, Math.trunc(time));
    gl.uniform1f(programInfo.uniforms.time_float, time);
+
+   gl.uniform1f(programInfo.uniforms.mouse_x_float, mouse_x);
+   gl.uniform1f(programInfo.uniforms.mouse_y_float, mouse_y);
+
+   gl.uniform1i(programInfo.uniforms.mouse_x, Math.trunc(mouse_x));
+   gl.uniform1i(programInfo.uniforms.mouse_y, Math.trunc(mouse_y));
 }
-
-
-/**
- * @type {ProgramInfo | null}
- */
-let BYTEBEAT_PROGRAM_INFO = null;
 
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
@@ -263,8 +287,7 @@ function on_event(gl, should_recompile) {
       BYTEBEAT_PROGRAM_INFO.frame = Math.max(0, BYTEBEAT_PROGRAM_INFO.frame + frame_delta);
       BYTEBEAT_PROGRAM_INFO.last_time = now;
       const frame_int = Math.round(BYTEBEAT_PROGRAM_INFO.frame);
-
-      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, params.wrap_value, params.color, BYTEBEAT_PROGRAM_INFO.frame);
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, params.wrap_value, params.color, BYTEBEAT_PROGRAM_INFO.frame, MOUSE_X, MOUSE_Y);
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
@@ -366,6 +389,14 @@ function main() {
       share_display.style.animation = "none";
       share_display.offsetHeight;
       share_display.style.animation = "fadeOut 1s forwards";
+   })
+
+   canvas.addEventListener("mousemove", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      MOUSE_X = ((event.clientX - rect.left) / (rect.right - rect.left)) * canvas.width;
+      MOUSE_Y = ((event.clientY - rect.top) / (rect.bottom - rect.top)) * canvas.height;
+
+      coord_display.innerText = `(${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})`
    })
 
    // Set the UI from the URL
