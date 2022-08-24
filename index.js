@@ -3,7 +3,8 @@ import { getTypedElementById, hexToRgb, render_error_messages, unwrap } from "./
 const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
 const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
 const color_input = getTypedElementById(HTMLInputElement, "color");
-
+const time_scale_input = getTypedElementById(HTMLInputElement, "time-scale");
+const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display");
 /**
  * Load the given shader into the given context
  * @param {WebGL2RenderingContext} gl the context to load the shader into
@@ -164,8 +165,9 @@ function compileBytebeat(gl, bytebeat) {
    precision mediump float;
 
    uniform float wrap_value;
-   uniform vec3 color;
+   uniform int t;
 
+   uniform vec3 color;
    out vec4 fragColor;
 
    void main() {
@@ -189,9 +191,12 @@ function compileBytebeat(gl, bytebeat) {
    // See also: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Data
    const programInfo = {
       program: shaderProgram,
+      last_time: Date.now(),
+      frame: 0,
       uniforms: {
-         color: unwrap(gl.getUniformLocation(shaderProgram, "color")),
-         wrap_value: unwrap(gl.getUniformLocation(shaderProgram, "wrap_value")),
+         color: gl.getUniformLocation(shaderProgram, "color"),
+         wrap_value: gl.getUniformLocation(shaderProgram, "wrap_value"),
+         time: gl.getUniformLocation(shaderProgram, "t"),
       },
       attribs: {
          position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
@@ -207,12 +212,14 @@ function compileBytebeat(gl, bytebeat) {
  * @param {WebGL2RenderingContext} gl
  * @param {ProgramInfo} programInfo
  * @param {number} wrap_value
+ * @param {number} time
  * @param {import("./util.js").RGBColor} color
  */
-function setUniforms(gl, programInfo, wrap_value, color) {
+function setUniforms(gl, programInfo, wrap_value, color, time) {
    gl.useProgram(programInfo.program);
    gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
    gl.uniform3fv(programInfo.uniforms.color, [color.r, color.g, color.b]);
+   gl.uniform1i(programInfo.uniforms.time, time);
 }
 
 
@@ -220,6 +227,7 @@ function setUniforms(gl, programInfo, wrap_value, color) {
  * @type {ProgramInfo | null}
  */
 let BYTEBEAT_PROGRAM_INFO = null;
+
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
  * @param {WebGL2RenderingContext} gl
@@ -228,7 +236,6 @@ let BYTEBEAT_PROGRAM_INFO = null;
 function on_event(gl, should_recompile) {
    const wrap_value = parseFloat(wrap_value_input.value);
    const color = hexToRgb(color_input.value) ?? { r: 0.0, g: 1.0, b: 1.0 };
-
    if (should_recompile) {
       try {
          const bytebeat = bytebeat_textarea.value;
@@ -241,26 +248,49 @@ function on_event(gl, should_recompile) {
    }
 
    if (BYTEBEAT_PROGRAM_INFO != null) {
-      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color);
+      const now = Date.now();
+      const delta_time = (now - BYTEBEAT_PROGRAM_INFO.last_time) / 100.0;
+      console.log(delta_time);
+      let time_scale = parseFloat(time_scale_input.value);
+      time_scale = (Math.pow(2, time_scale * time_scale * 10.0) - 1) * Math.sign(time_scale);
+      const frame_delta = delta_time * time_scale;
+      BYTEBEAT_PROGRAM_INFO.frame = Math.max(0, BYTEBEAT_PROGRAM_INFO.frame + frame_delta);
+      BYTEBEAT_PROGRAM_INFO.last_time = now;
+      const frame_int = Math.round(BYTEBEAT_PROGRAM_INFO.frame);
+
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color, frame_int);
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
+      time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
+}
+
+function update_frame() {
+   if (BYTEBEAT_PROGRAM_INFO == null) {
+      return 0;
+   }
+
 }
 
 function main() {
    const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
-   const gl = canvas.getContext("webgl2");
+   const gl = unwrap(canvas.getContext("webgl2"));
 
-   if (gl == null) {
-      console.error("Expected canvas context, got null.");
-      alert("Couldn't initialize WebGL2RenderingContext. Maybe your browser does not support it?");
-      return;
-   }
    console.log("Using canvas with dimensions: ", canvas.width, canvas.height);
 
    bytebeat_textarea.addEventListener("input", () => on_event(gl, true));
    wrap_value_input.addEventListener("input", () => on_event(gl, false));
    color_input.addEventListener("input", () => on_event(gl, false));
+   time_scale_input.addEventListener("input", () => {
+      on_event(gl, false);
+   });
    on_event(gl, true);
+
+   animation_loop();
+
+   function animation_loop() {
+      on_event(gl, false);
+      requestAnimationFrame(animation_loop);
+   }
 }
 
 main();
