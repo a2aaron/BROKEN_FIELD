@@ -16,6 +16,17 @@ canvas {
     width: 512px;
     border: 1px solid black;
 }
+
+/* Attempt to use nearest neighbor upscaling */
+canvas {
+    image-rendering: optimizeSpeed;             /* Older versions of FF          */
+    image-rendering: -moz-crisp-edges;          /* FF 6.0+                       */
+    image-rendering: -webkit-optimize-contrast; /* Safari                        */
+    image-rendering: -o-crisp-edges;            /* OS X & Windows Opera (12.02+) */
+    image-rendering: pixelated;                 /* Awesome future-browsers       */
+    -ms-interpolation-mode: nearest-neighbor;   /* IE                            */
+}
+
 textarea { 
     width: 512px;
     height: 100px;

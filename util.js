@@ -163,3 +163,15 @@ export function hexToRgb(hex) {
         b: parseInt(result[3], 16) / 0xFF,
     } : null;
 }
+
+/**
+ * @template T
+ * @param {T | null} x
+ * @return {T}
+ */
+export function unwrap(x) {
+    if (x == null) {
+        throw new Error("Unwrapped a null value!");
+    }
+    return x;
+}

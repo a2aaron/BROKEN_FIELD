@@ -1,4 +1,4 @@
-import { getTypedElementById, hexToRgb, render_error_messages } from "./util.js";
+import { getTypedElementById, hexToRgb, render_error_messages, unwrap } from "./util.js";
 
 const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
 const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
@@ -103,9 +103,9 @@ function initBuffers(gl) {
 /**
  * Draw the entire scene.
  * @param {WebGL2RenderingContext} gl 
- * @param {*} programInfo 
+ * @param {ProgramInfo} programInfo 
  */
-function drawScene(gl, programInfo) {
+function renderBytebeat(gl, programInfo) {
    // Set the clear color to solid black
    gl.clearColor(0.0, 0.0, 0.0, 1.0);
    // Set the clear value for the depth buffer
@@ -128,18 +128,15 @@ function drawScene(gl, programInfo) {
       // 0 = use type and numComponents above
       const offset = 0;         // how many bytes inside the buffer to start from
       gl.vertexAttribPointer(
-         programInfo.attribLocations.vertexPosition,
+         programInfo.attribs.position,
          numComponents,
          type,
          normalize,
          stride,
          offset);
       gl.enableVertexAttribArray(
-         programInfo.attribLocations.vertexPosition);
+         programInfo.attribs.position);
    }
-
-   // Tell WebGL to use our program when drawing
-   gl.useProgram(programInfo.program);
 
    {
       const offset = 0;
@@ -152,10 +149,10 @@ function drawScene(gl, programInfo) {
  * Render a bytebeat equation.
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat to render
- * @param {string} wrap_value the value range to wrap output values between
- * @param {import("./util.js").RGBColor} color the color to use
+ * @return {typeof programInfo}
+ * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
  */
-function compileAndRenderBytebeat(gl, bytebeat, wrap_value, color) {
+function compileBytebeat(gl, bytebeat) {
    const vsSource = `#version 300 es
    in vec4 aVertexPosition;
 
@@ -166,14 +163,16 @@ function compileAndRenderBytebeat(gl, bytebeat, wrap_value, color) {
    const fsSource = `#version 300 es
    precision mediump float;
 
+   uniform float wrap_value;
+   uniform vec3 color;
+
    out vec4 fragColor;
 
    void main() {
      int sx = int(gl_FragCoord.x - 0.5);
      int sy = int(gl_FragCoord.y - 0.5);
      int value = ${bytebeat};
-     float value_out = float(value % ${wrap_value}) / ${wrap_value}.0;
-     vec3 color = vec3(${color.r}, ${color.g}, ${color.b});
+     float value_out = float(value % int(wrap_value)) / wrap_value;
      fragColor = vec4(value_out * color, 1.0);
    }`;
 
@@ -190,27 +189,60 @@ function compileAndRenderBytebeat(gl, bytebeat, wrap_value, color) {
    // See also: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Data
    const programInfo = {
       program: shaderProgram,
-      attribLocations: {
-         vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+      uniforms: {
+         color: unwrap(gl.getUniformLocation(shaderProgram, "color")),
+         wrap_value: unwrap(gl.getUniformLocation(shaderProgram, "wrap_value")),
       },
+      attribs: {
+         position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
+      }
    };
 
    initBuffers(gl);
 
-   drawScene(gl, programInfo);
+   return programInfo;
 }
 
 /**
+ * @param {WebGL2RenderingContext} gl
+ * @param {ProgramInfo} programInfo
+ * @param {number} wrap_value
+ * @param {import("./util.js").RGBColor} color
+ */
+function setUniforms(gl, programInfo, wrap_value, color) {
+   gl.useProgram(programInfo.program);
+   gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
+   gl.uniform3fv(programInfo.uniforms.color, [color.r, color.g, color.b]);
+}
+
+
+/**
+ * @type {ProgramInfo | null}
+ */
+let BYTEBEAT_PROGRAM_INFO = null;
+/**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
  * @param {WebGL2RenderingContext} gl
+ * @param {boolean} should_recompile if true, then recompile the shader
  */
-function renderByebeatWithErrorMessage(gl) {
-   try {
-      compileAndRenderBytebeat(gl, bytebeat_textarea.value, wrap_value_input.value, hexToRgb(color_input.value) ?? { r: 0.0, g: 1.0, b: 1.0 });
-      render_error_messages();
-   } catch (err) {
-      // @ts-ignore
-      render_error_messages(err);
+function on_event(gl, should_recompile) {
+   const wrap_value = parseFloat(wrap_value_input.value);
+   const color = hexToRgb(color_input.value) ?? { r: 0.0, g: 1.0, b: 1.0 };
+
+   if (should_recompile) {
+      try {
+         const bytebeat = bytebeat_textarea.value;
+         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
+         render_error_messages();
+      } catch (err) {
+         // @ts-ignore
+         render_error_messages(err);
+      }
+   }
+
+   if (BYTEBEAT_PROGRAM_INFO != null) {
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color);
+      renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
    }
 }
 
@@ -225,10 +257,10 @@ function main() {
    }
    console.log("Using canvas with dimensions: ", canvas.width, canvas.height);
 
-   bytebeat_textarea.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
-   wrap_value_input.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
-   color_input.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
-   renderByebeatWithErrorMessage(gl);
+   bytebeat_textarea.addEventListener("input", () => on_event(gl, true));
+   wrap_value_input.addEventListener("input", () => on_event(gl, false));
+   color_input.addEventListener("input", () => on_event(gl, false));
+   on_event(gl, true);
 }
 
 main();
