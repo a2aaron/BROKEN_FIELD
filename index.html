@@ -21,8 +21,13 @@
     </h1>
     <main class="gap-1">
       <f-row class="gap-1">
-        <f-col>
+        <f-col class="gap-1">
           <textarea id="input">sx * sy</textarea>
+          <f-row class="gap-1 ui-element">
+            <button id="restart-btn">Restart</button>
+            <button id="randomize-btn">Randomize</button>
+            <button id="mutate-btn">Mutate</button>
+          </f-row>
           <f-row class="gap-1 ui-element">
             <label for="time-scale">Time Scale</label>
             <input type="range" id="time-scale" value="0.0" min="-1.0" max="1.0" step="any">

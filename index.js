@@ -5,6 +5,10 @@ const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value")
 const color_input = getTypedElementById(HTMLInputElement, "color");
 const time_scale_input = getTypedElementById(HTMLInputElement, "time-scale");
 const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display");
+
+const restart_button = getTypedElementById(HTMLButtonElement, "restart-btn");
+const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn");
+const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
 /**
  * Load the given shader into the given context
  * @param {WebGL2RenderingContext} gl the context to load the shader into
@@ -150,10 +154,11 @@ function renderBytebeat(gl, programInfo) {
  * Render a bytebeat equation.
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat to render
+ * @param {number} init_frame the initial t value to use
  * @return {typeof programInfo}
  * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
  */
-function compileBytebeat(gl, bytebeat) {
+function compileBytebeat(gl, bytebeat, init_frame) {
    const vsSource = `#version 300 es
    in vec4 aVertexPosition;
 
@@ -166,6 +171,7 @@ function compileBytebeat(gl, bytebeat) {
 
    uniform float wrap_value;
    uniform int t;
+   uniform float tf;
 
    uniform vec3 color;
    out vec4 fragColor;
@@ -192,11 +198,12 @@ function compileBytebeat(gl, bytebeat) {
    const programInfo = {
       program: shaderProgram,
       last_time: Date.now(),
-      frame: 0,
+      frame: init_frame,
       uniforms: {
          color: gl.getUniformLocation(shaderProgram, "color"),
          wrap_value: gl.getUniformLocation(shaderProgram, "wrap_value"),
          time: gl.getUniformLocation(shaderProgram, "t"),
+         time_float: gl.getUniformLocation(shaderProgram, "tf"),
       },
       attribs: {
          position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
@@ -219,7 +226,8 @@ function setUniforms(gl, programInfo, wrap_value, color, time) {
    gl.useProgram(programInfo.program);
    gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
    gl.uniform3fv(programInfo.uniforms.color, [color.r, color.g, color.b]);
-   gl.uniform1i(programInfo.uniforms.time, time);
+   gl.uniform1i(programInfo.uniforms.time, Math.trunc(time));
+   gl.uniform1f(programInfo.uniforms.time_float, time);
 }
 
 
@@ -239,7 +247,7 @@ function on_event(gl, should_recompile) {
    if (should_recompile) {
       try {
          const bytebeat = bytebeat_textarea.value;
-         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
+         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat, BYTEBEAT_PROGRAM_INFO?.frame ?? 0);
          render_error_messages();
       } catch (err) {
          // @ts-ignore
@@ -250,7 +258,6 @@ function on_event(gl, should_recompile) {
    if (BYTEBEAT_PROGRAM_INFO != null) {
       const now = Date.now();
       const delta_time = (now - BYTEBEAT_PROGRAM_INFO.last_time) / 100.0;
-      console.log(delta_time);
       let time_scale = parseFloat(time_scale_input.value);
       time_scale = (Math.pow(2, time_scale * time_scale * 10.0) - 1) * Math.sign(time_scale);
       const frame_delta = delta_time * time_scale;
@@ -258,7 +265,7 @@ function on_event(gl, should_recompile) {
       BYTEBEAT_PROGRAM_INFO.last_time = now;
       const frame_int = Math.round(BYTEBEAT_PROGRAM_INFO.frame);
 
-      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color, frame_int);
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color, BYTEBEAT_PROGRAM_INFO.frame);
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
@@ -283,6 +290,33 @@ function main() {
    time_scale_input.addEventListener("input", () => {
       on_event(gl, false);
    });
+
+   restart_button.addEventListener("click", () => {
+      if (BYTEBEAT_PROGRAM_INFO) {
+         BYTEBEAT_PROGRAM_INFO.frame = 0;
+      }
+      on_event(gl, false);
+   })
+
+   randomize_button.addEventListener("click", () => {
+      const colors = [
+         "#FFFFFF",
+         "#0000FF",
+         "#00FF00",
+         "#FF0000",
+         "#FFFF00",
+         "#FF00FF",
+         "#00FFFF"];
+      let random_color = colors[Math.floor(Math.random() * colors.length)];
+      color_input.value = random_color;
+      on_event(gl, true);
+   })
+
+   mutate_button.addEventListener("click", () => {
+      alert("TODO!");
+      on_event(gl, true);
+   })
+
    on_event(gl, true);
 
    animation_loop();
