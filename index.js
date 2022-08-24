@@ -357,7 +357,6 @@ function params_to_string(params) {
  */
 function set_ui(params) {
    bytebeat_textarea.value = params.bytebeat;
-   console.log(params.color);
    wrap_value_input.value = params.wrap_value;
    time_scale_input.value = params.time_scale;
    color_input.value = params.color;
@@ -410,7 +409,7 @@ function main() {
    share_button.addEventListener("click", () => {
       const params = get_parameters();
       const stringy_params = {
-         bytebeat: params.bytebeat,
+         bytebeat: btoa(params.bytebeat),
          color: params.color.toHexString(),
          wrap_value: params.wrap_value.toFixed(0),
          time_scale: params.time_scale.toFixed(2),
@@ -453,11 +452,22 @@ function main() {
    // Set the UI from the URL
    {
       let params = new URLSearchParams(window.location.search);
+      let bytebeat = params.get("bytebeat");
+      if (bytebeat) {
+         try {
+            bytebeat = atob(bytebeat);
+         } catch (e) {
+            console.log(`bytebeat is not valid base64, assuming it's a raw bytebeat instead`);
+         }
+      } else {
+         bytebeat = "(sx ^ sy) + t";
+      }
+      let color = params.get("color");
       let string_params = {
-         bytebeat: params.get("bytebeat") ?? "sx ^ sy",
-         color: params.get("color") != null ? `#${params.get("color")}` : "#00FF00",
+         bytebeat,
+         color: color ? `#${color}` : "#00FF00",
          wrap_value: params.get("wrap_value") ?? "256",
-         time_scale: params.get("time_scale") ?? "0.0",
+         time_scale: params.get("time_scale") ?? "0.5",
       };
       set_ui(string_params);
    }
