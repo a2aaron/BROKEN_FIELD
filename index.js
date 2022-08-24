@@ -1,4 +1,4 @@
-import { getTypedElementById, hexToRgb, render_error_messages, unwrap } from "./util.js";
+import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
 const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
@@ -9,6 +9,8 @@ const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display"
 const restart_button = getTypedElementById(HTMLButtonElement, "restart-btn");
 const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn");
 const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
+const share_button = getTypedElementById(HTMLButtonElement, "share-btn");
+const share_display = getTypedElementById(HTMLElement, "share-confirm");
 /**
  * Load the given shader into the given context
  * @param {WebGL2RenderingContext} gl the context to load the shader into
@@ -225,7 +227,7 @@ function compileBytebeat(gl, bytebeat, init_frame) {
 function setUniforms(gl, programInfo, wrap_value, color, time) {
    gl.useProgram(programInfo.program);
    gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
-   gl.uniform3fv(programInfo.uniforms.color, [color.r, color.g, color.b]);
+   gl.uniform3fv(programInfo.uniforms.color, color.toFloat());
    gl.uniform1i(programInfo.uniforms.time, Math.trunc(time));
    gl.uniform1f(programInfo.uniforms.time_float, time);
 }
@@ -242,12 +244,10 @@ let BYTEBEAT_PROGRAM_INFO = null;
  * @param {boolean} should_recompile if true, then recompile the shader
  */
 function on_event(gl, should_recompile) {
-   const wrap_value = parseFloat(wrap_value_input.value);
-   const color = hexToRgb(color_input.value) ?? { r: 0.0, g: 1.0, b: 1.0 };
+   const params = get_parameters();
    if (should_recompile) {
       try {
-         const bytebeat = bytebeat_textarea.value;
-         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat, BYTEBEAT_PROGRAM_INFO?.frame ?? 0);
+         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, params.bytebeat, BYTEBEAT_PROGRAM_INFO?.frame ?? 0);
          render_error_messages();
       } catch (err) {
          // @ts-ignore
@@ -258,31 +258,65 @@ function on_event(gl, should_recompile) {
    if (BYTEBEAT_PROGRAM_INFO != null) {
       const now = Date.now();
       const delta_time = (now - BYTEBEAT_PROGRAM_INFO.last_time) / 100.0;
-      let time_scale = parseFloat(time_scale_input.value);
-      time_scale = (Math.pow(2, time_scale * time_scale * 10.0) - 1) * Math.sign(time_scale);
+      const time_scale = (Math.pow(2, params.time_scale * params.time_scale * 10.0) - 1) * Math.sign(params.time_scale);
       const frame_delta = delta_time * time_scale;
       BYTEBEAT_PROGRAM_INFO.frame = Math.max(0, BYTEBEAT_PROGRAM_INFO.frame + frame_delta);
       BYTEBEAT_PROGRAM_INFO.last_time = now;
       const frame_int = Math.round(BYTEBEAT_PROGRAM_INFO.frame);
 
-      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, wrap_value, color, BYTEBEAT_PROGRAM_INFO.frame);
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, params.wrap_value, params.color, BYTEBEAT_PROGRAM_INFO.frame);
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
 }
 
-function update_frame() {
-   if (BYTEBEAT_PROGRAM_INFO == null) {
-      return 0;
-   }
 
+/**
+ * Return the user parameters in a nicely parsed state.
+ * @returns {typeof parameters}
+ * @typedef {ReturnType<typeof get_parameters>} Parameters
+ */
+function get_parameters() {
+   const parameters = {
+      bytebeat: bytebeat_textarea.value,
+      wrap_value: parseFloat(wrap_value_input.value),
+      color: RGBColor.fromHexCode(color_input.value) ?? new RGBColor(0x00, 0xFF, 0x00),
+      time_scale: parseFloat(time_scale_input.value),
+   };
+   return parameters;
+}
+
+/**
+ * Convert a Parameters object into a StringParameters.
+ * @param {Parameters} params
+ * @returns {typeof stringy_params}
+ * @typedef {ReturnType<typeof params_to_string>} StringParameters
+ */
+function params_to_string(params) {
+   const stringy_params = {
+      bytebeat: params.bytebeat,
+      color: "#" + params.color.toHexString(),
+      wrap_value: params.wrap_value.toFixed(0),
+      time_scale: params.time_scale.toFixed(2),
+   }
+   return stringy_params;
+}
+
+/**
+ * Set the UI from the given parameters.
+ * @param {StringParameters} params 
+ */
+function set_ui(params) {
+   bytebeat_textarea.value = params.bytebeat;
+   console.log(params.color);
+   wrap_value_input.value = params.wrap_value;
+   time_scale_input.value = params.time_scale;
+   color_input.value = params.color;
 }
 
 function main() {
    const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
    const gl = unwrap(canvas.getContext("webgl2"));
-
-   console.log("Using canvas with dimensions: ", canvas.width, canvas.height);
 
    bytebeat_textarea.addEventListener("input", () => on_event(gl, true));
    wrap_value_input.addEventListener("input", () => on_event(gl, false));
@@ -317,8 +351,32 @@ function main() {
       on_event(gl, true);
    })
 
-   on_event(gl, true);
+   share_button.addEventListener("click", () => {
+      const params = get_parameters();
+      const stringy_params = {
+         bytebeat: params.bytebeat,
+         color: params.color.toHexString(),
+         wrap_value: params.wrap_value.toFixed(0),
+         time_scale: params.time_scale.toFixed(2),
+      }
+      const url = new URL(window.location.href);
+      url.search = new URLSearchParams(stringy_params).toString();
+      navigator.clipboard.writeText(url.toString());
+   })
 
+   // Set the UI from the URL
+   {
+      let params = new URLSearchParams(window.location.search);
+      let string_params = {
+         bytebeat: params.get("bytebeat") ?? "sx ^ sy",
+         color: params.get("color") != null ? `#${params.get("color")}` : "#00FF00",
+         wrap_value: params.get("wrap_value") ?? "256",
+         time_scale: params.get("time_scale") ?? "0.0",
+      };
+      set_ui(string_params);
+   }
+
+   on_event(gl, true);
    animation_loop();
 
    function animation_loop() {

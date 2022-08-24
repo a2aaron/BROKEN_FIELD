@@ -1,10 +1,6 @@
 let ERROR_ELEMENT = document.getElementById("error-msg");
 
 /**
- * @typedef {{r: number, g: number, b: number}} RGBColor
- */
-
-/**
  * Show the error messages associated with the given template.
  * @param {...Error} errors
  */
@@ -149,19 +145,57 @@ export function getTypedElementById(ty, id) {
     return element;
 }
 
-/**
- * Turn a hex color code into a color triple
- * @param {string} hex 
- * @returns {RGBColor | null}
- *
- */
-export function hexToRgb(hex) {
-    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16) / 0xFF,
-        g: parseInt(result[2], 16) / 0xFF,
-        b: parseInt(result[3], 16) / 0xFF,
-    } : null;
+export class RGBColor {
+    /**
+     * 
+     * @param {number} r red channel, 0x00 to 0xFF range inclusive
+     * @param {number} g green channel, 0x00 to 0xFF range inclusive
+     * @param {number} b blue channel, 0x00 to 0xFF range inclusive
+     */
+    constructor(r, g, b) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+
+    /**
+     * 
+     * @param {string} hex_code 
+     * @returns {RGBColor | null}
+     */
+    static fromHexCode(hex_code) {
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex_code);
+        if (result) {
+            return new RGBColor(parseInt(result[1], 16),
+                parseInt(result[2], 16),
+                parseInt(result[3], 16));
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Turns an RGBColor into [0.0 - 1.0] float triple.
+     * @returns {[number, number, number]}
+     */
+    toFloat() {
+        return [this.r / 0xFF, this.g / 0xFF, this.b / 0xFF];
+    }
+
+    /**
+     * Turn a RGBColor into a hex string. Does not include the #.
+     * @returns {string}
+     */
+    toHexString() {
+        return `${toHex(this.r)}${toHex(this.g)}${toHex(this.b)}`;
+        /**
+         * @param {number} c
+         */
+        function toHex(c) {
+            var hex = c.toString(16);
+            return hex.length == 1 ? "0" + hex : hex;
+        }
+    }
 }
 
 /**
