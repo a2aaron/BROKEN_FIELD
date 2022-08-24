@@ -20,35 +20,33 @@
       BROKEN FIELD
     </h1>
     <main class="gap-1">
-      <f-row class="gap-1">
-        <f-col class="gap-1">
-          <textarea id="input">sx * sy</textarea>
-          <f-row class="gap-1 ui-element">
-            <button id="restart-btn">Restart</button>
-            <button id="randomize-btn">Randomize</button>
-            <button id="mutate-btn">Mutate</button>
-            <button id="share-btn">Copy Sharable Link</button>
-            <div id="share-confirm"></div>
-          </f-row>
-          <f-row class="gap-1 ui-element">
-            <label for="time-scale">Time Scale</label>
-            <input type="range" id="time-scale" value="0.0" min="-1.0" max="1.0" step="any">
-            <p id="time-scale-display">1.0x</p>
-          </f-row>
-          <f-row class="gap-1 ui-element">
-            <label for="color">Color</label>
-            <input type="color" id="color" value="#00FF00">
-          </f-row>
-          <f-row class="gap-1 ui-element">
-            <label for="wrapping-value">Wrap Value</label>
-            <input type="number" id="wrapping-value" value="256">
-          </f-row>
-        </f-col>
-        <f-col>
-          <canvas id="canvas" height="1024", width="1024"></canvas>
-          <div id="coord-display"></div>
-        </f-col>
-      </f-row>
+      <f-col class="gap-1">
+        <textarea id="input">sx * sy</textarea>
+        <f-row class="gap-1 ui-element">
+          <button id="restart-btn">Restart</button>
+          <button id="randomize-btn">Randomize</button>
+          <button id="mutate-btn">Mutate</button>
+          <button id="share-btn">Copy Sharable Link</button>
+          <div id="share-confirm"></div>
+        </f-row>
+        <f-row class="gap-1 ui-element">
+          <label for="time-scale">Time Scale</label>
+          <input type="range" id="time-scale" value="0.0" min="-1.0" max="1.0" step="any">
+          <p id="time-scale-display">1.0x</p>
+        </f-row>
+        <f-row class="gap-1 ui-element">
+          <label for="color">Color</label>
+          <input type="color" id="color" value="#00FF00">
+        </f-row>
+        <f-row class="gap-1 ui-element">
+          <label for="wrapping-value">Wrap Value</label>
+          <input type="number" id="wrapping-value" value="256">
+        </f-row>
+      </f-col>
+      <f-col class="gap-1">
+        <canvas id="canvas" height="1024" , width="1024"></canvas>
+        <div id="coord-display"></div>
+      </f-col>
       <code id="error-msg"></code>
     </main>
 </body>
