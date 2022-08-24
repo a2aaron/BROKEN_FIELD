@@ -1,5 +1,8 @@
 import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./util.js";
 
+// HTML elements we wish to attach event handlers to.
+// HTML elements we wish to reference
+
 const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
 const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
 const color_input = getTypedElementById(HTMLInputElement, "color");
@@ -14,12 +17,17 @@ const share_display = getTypedElementById(HTMLElement, "share-confirm");
 
 const coord_display = getTypedElementById(HTMLElement, "coord-display");
 
+// Global variables for the current bytebeat. This contains things like the current mouse/keyboard
+// values, as well the currently loaded bytebeat
+
 /**
  * @type {ProgramInfo | null}
  */
 let BYTEBEAT_PROGRAM_INFO = null;
 let MOUSE_X = 0;
 let MOUSE_Y = 0;
+let KEYBOARD_X = 0;
+let KEYBOARD_Y = 0;
 
 /**
  * Load the given shader into the given context
@@ -190,6 +198,11 @@ function compileBytebeat(gl, bytebeat, init_frame) {
    uniform float mx_f;
    uniform float my_f;
 
+   uniform int kx;
+   uniform int ky;
+   uniform float kx_f;
+   uniform float ky_f;
+
    uniform vec3 color;
    out vec4 fragColor;
 
@@ -227,6 +240,10 @@ function compileBytebeat(gl, bytebeat, init_frame) {
          mouse_y: gl.getUniformLocation(shaderProgram, "my"),
          mouse_x_float: gl.getUniformLocation(shaderProgram, "mx_f"),
          mouse_y_float: gl.getUniformLocation(shaderProgram, "my_f"),
+         keyboard_x: gl.getUniformLocation(shaderProgram, "kx"),
+         keyboard_y: gl.getUniformLocation(shaderProgram, "ky"),
+         keyboard_x_float: gl.getUniformLocation(shaderProgram, "kx_f"),
+         keyboard_y_float: gl.getUniformLocation(shaderProgram, "ky_f"),
       },
       attribs: {
          position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
@@ -246,8 +263,10 @@ function compileBytebeat(gl, bytebeat, init_frame) {
  * @param {import("./util.js").RGBColor} color
  * @param {number} mouse_x
  * @param {number} mouse_y
+ * @param {number} keyboard_x
+ * @param {number} keyboard_y
  */
-function setUniforms(gl, programInfo, wrap_value, color, time, mouse_x, mouse_y) {
+function setUniforms(gl, programInfo, wrap_value, color, time, mouse_x, mouse_y, keyboard_x, keyboard_y) {
    gl.useProgram(programInfo.program);
    gl.uniform1f(programInfo.uniforms.wrap_value, wrap_value)
    gl.uniform3fv(programInfo.uniforms.color, color.toFloat());
@@ -256,10 +275,16 @@ function setUniforms(gl, programInfo, wrap_value, color, time, mouse_x, mouse_y)
    gl.uniform1f(programInfo.uniforms.time_float, time);
 
    gl.uniform1f(programInfo.uniforms.mouse_x_float, mouse_x);
-   gl.uniform1f(programInfo.uniforms.mouse_y_float, mouse_y);
-
    gl.uniform1i(programInfo.uniforms.mouse_x, Math.trunc(mouse_x));
+
+   gl.uniform1f(programInfo.uniforms.mouse_y_float, mouse_y);
    gl.uniform1i(programInfo.uniforms.mouse_y, Math.trunc(mouse_y));
+
+   gl.uniform1f(programInfo.uniforms.keyboard_x_float, keyboard_x);
+   gl.uniform1i(programInfo.uniforms.keyboard_x, Math.trunc(keyboard_x));
+
+   gl.uniform1f(programInfo.uniforms.keyboard_y_float, keyboard_y);
+   gl.uniform1i(programInfo.uniforms.keyboard_y, Math.trunc(keyboard_y));
 }
 
 /**
@@ -287,7 +312,8 @@ function on_event(gl, should_recompile) {
       BYTEBEAT_PROGRAM_INFO.frame = Math.max(0, BYTEBEAT_PROGRAM_INFO.frame + frame_delta);
       BYTEBEAT_PROGRAM_INFO.last_time = now;
       const frame_int = Math.round(BYTEBEAT_PROGRAM_INFO.frame);
-      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, params.wrap_value, params.color, BYTEBEAT_PROGRAM_INFO.frame, MOUSE_X, MOUSE_Y);
+      setUniforms(gl, BYTEBEAT_PROGRAM_INFO, params.wrap_value, params.color, BYTEBEAT_PROGRAM_INFO.frame,
+         MOUSE_X, MOUSE_Y, KEYBOARD_X, KEYBOARD_Y);
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO);
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
@@ -337,6 +363,10 @@ function set_ui(params) {
    color_input.value = params.color;
 }
 
+function update_coord_display() {
+   coord_display.innerText = `Mouse: (${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})\nKeyboard: (${KEYBOARD_X}, ${KEYBOARD_Y})`;
+}
+
 function main() {
    const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
    const gl = unwrap(canvas.getContext("webgl2"));
@@ -352,7 +382,10 @@ function main() {
       if (BYTEBEAT_PROGRAM_INFO) {
          BYTEBEAT_PROGRAM_INFO.frame = 0;
       }
+      KEYBOARD_X = 0;
+      KEYBOARD_Y = 0;
       on_event(gl, false);
+      update_coord_display();
    })
 
    randomize_button.addEventListener("click", () => {
@@ -391,13 +424,31 @@ function main() {
       share_display.style.animation = "fadeOut 1s forwards";
    })
 
+   // Handle mouse movements on the canvas
    canvas.addEventListener("mousemove", (event) => {
       const rect = canvas.getBoundingClientRect();
       MOUSE_X = ((event.clientX - rect.left) / (rect.right - rect.left)) * canvas.width;
       MOUSE_Y = ((event.clientY - rect.top) / (rect.bottom - rect.top)) * canvas.height;
 
-      coord_display.innerText = `(${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})`
+      update_coord_display();
    })
+
+   // Handle arrow keys
+   window.addEventListener("keydown", (event) => {
+      if (event.key == "ArrowLeft") {
+         KEYBOARD_X -= 1;
+      } else if (event.key == "ArrowRight") {
+         KEYBOARD_X += 1;
+      } else if (event.key == "ArrowUp") {
+         KEYBOARD_Y += 1;
+      } else if (event.key == "ArrowDown") {
+         KEYBOARD_Y -= 1;
+      }
+
+
+      update_coord_display();
+   })
+
 
    // Set the UI from the URL
    {
@@ -413,6 +464,7 @@ function main() {
 
    on_event(gl, true);
    animation_loop();
+   update_coord_display();
 
    function animation_loop() {
       on_event(gl, false);
