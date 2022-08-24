@@ -362,6 +362,10 @@ function main() {
       const url = new URL(window.location.href);
       url.search = new URLSearchParams(stringy_params).toString();
       navigator.clipboard.writeText(url.toString());
+      share_display.innerText = "Copied!";
+      share_display.style.animation = "none";
+      share_display.offsetHeight;
+      share_display.style.animation = "fadeOut 1s forwards";
    })
 
    // Set the UI from the URL

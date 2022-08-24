@@ -50,3 +50,13 @@ main {
     color: red;
     word-wrap: normal;
 }
+
+#share-confirm {
+    pointer-events: none;
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    75% { opacity: 0.8; }
+    100% { opacity: 0; }
+}
