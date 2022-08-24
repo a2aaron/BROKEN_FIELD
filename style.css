@@ -26,6 +26,15 @@ main {
     flex-direction: column;
 }
 
+.ui-element {
+    display: flex;
+    align-items: center;
+}
+
+#wrapping-value {
+    width: fit-content;
+}
+
 #error-msg {
     color: red;
     word-wrap: normal;

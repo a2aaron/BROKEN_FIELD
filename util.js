@@ -1,6 +1,10 @@
 let ERROR_ELEMENT = document.getElementById("error-msg");
 
 /**
+ * @typedef {{r: number, g: number, b: number}} RGBColor
+ */
+
+/**
  * Show the error messages associated with the given template.
  * @param {...Error} errors
  */
@@ -143,4 +147,19 @@ export function getTypedElementById(ty, id) {
         throw new Error(`Element with id ${id} is type ${element.constructor.name}, wanted ${ty}`);
     }
     return element;
+}
+
+/**
+ * Turn a hex color code into a color triple
+ * @param {string} hex 
+ * @returns {RGBColor | null}
+ *
+ */
+export function hexToRgb(hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16) / 0xFF,
+        g: parseInt(result[2], 16) / 0xFF,
+        b: parseInt(result[3], 16) / 0xFF,
+    } : null;
 }

@@ -1,4 +1,9 @@
-import { getTypedElementById, render_error_messages } from "./util.js";
+import { getTypedElementById, hexToRgb, render_error_messages } from "./util.js";
+
+const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
+const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
+const color_input = getTypedElementById(HTMLInputElement, "color");
+
 /**
  * Load the given shader into the given context
  * @param {WebGL2RenderingContext} gl the context to load the shader into
@@ -23,7 +28,7 @@ function loadShader(gl, type, source) {
    // See if it compiled successfully
    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
       let shader_name = type == gl.VERTEX_SHADER ? "vertex" : "fragement";
-      let msg = `An error occurred compiling the ${type} shader: ${gl.getShaderInfoLog(shader)}`;
+      let msg = `An error occurred compiling the ${type} shader: ${gl.getShaderInfoLog(shader)}\n${source}`;
       gl.deleteShader(shader);
       throw new Error(msg);
    }
@@ -147,8 +152,10 @@ function drawScene(gl, programInfo) {
  * Render a bytebeat equation.
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat to render
+ * @param {string} wrap_value the value range to wrap output values between
+ * @param {import("./util.js").RGBColor} color the color to use
  */
-function compileAndRenderBytebeat(gl, bytebeat) {
+function compileAndRenderBytebeat(gl, bytebeat, wrap_value, color) {
    const vsSource = `#version 300 es
    in vec4 aVertexPosition;
 
@@ -165,8 +172,8 @@ function compileAndRenderBytebeat(gl, bytebeat) {
      int sx = int(gl_FragCoord.x - 0.5);
      int sy = int(gl_FragCoord.y - 0.5);
      int value = ${bytebeat};
-     float value_out = float(value % 255) / 255.0;
-     vec3 color = vec3(0.0, 1.0, 0.0);
+     float value_out = float(value % ${wrap_value}) / ${wrap_value}.0;
+     vec3 color = vec3(${color.r}, ${color.g}, ${color.b});
      fragColor = vec4(value_out * color, 1.0);
    }`;
 
@@ -196,11 +203,10 @@ function compileAndRenderBytebeat(gl, bytebeat) {
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
  * @param {WebGL2RenderingContext} gl
- * @param {string} bytebeat
  */
-function renderByebeatWithErrorMessage(gl, bytebeat) {
+function renderByebeatWithErrorMessage(gl) {
    try {
-      compileAndRenderBytebeat(gl, bytebeat);
+      compileAndRenderBytebeat(gl, bytebeat_textarea.value, wrap_value_input.value, hexToRgb(color_input.value) ?? { r: 0.0, g: 1.0, b: 1.0 });
       render_error_messages();
    } catch (err) {
       // @ts-ignore
@@ -210,7 +216,6 @@ function renderByebeatWithErrorMessage(gl, bytebeat) {
 
 function main() {
    const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
-   const textarea = getTypedElementById(HTMLTextAreaElement, "input");
    const gl = canvas.getContext("webgl2");
 
    if (gl == null) {
@@ -220,8 +225,10 @@ function main() {
    }
    console.log("Using canvas with dimensions: ", canvas.width, canvas.height);
 
-   textarea.addEventListener("input", () => renderByebeatWithErrorMessage(gl, textarea.value));
-   renderByebeatWithErrorMessage(gl, textarea.value);
+   bytebeat_textarea.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
+   wrap_value_input.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
+   color_input.addEventListener("input", () => renderByebeatWithErrorMessage(gl));
+   renderByebeatWithErrorMessage(gl);
 }
 
 main();
