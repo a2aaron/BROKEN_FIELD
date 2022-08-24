@@ -190,18 +190,8 @@ function compileBytebeat(gl, bytebeat, init_frame) {
    precision mediump float;
 
    uniform float wrap_value;
-   uniform int t;
-   uniform float t_f;
-
-   uniform int mx;
-   uniform int my;
-   uniform float mx_f;
-   uniform float my_f;
-
-   uniform int kx;
-   uniform int ky;
-   uniform float kx_f;
-   uniform float ky_f;
+   uniform int t, mx, my, kx, ky;
+   uniform float t_f, mx_f, my_f, kx_f, ky_f;
 
    uniform vec3 color;
    out vec4 fragColor;
@@ -427,7 +417,7 @@ function main() {
    canvas.addEventListener("mousemove", (event) => {
       const rect = canvas.getBoundingClientRect();
       MOUSE_X = ((event.clientX - rect.left) / (rect.right - rect.left)) * canvas.width;
-      MOUSE_Y = ((event.clientY - rect.top) / (rect.bottom - rect.top)) * canvas.height;
+      MOUSE_Y = canvas.height - (((event.clientY - rect.top) / (rect.bottom - rect.top)) * canvas.height);
 
       update_coord_display();
    })

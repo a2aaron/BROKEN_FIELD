@@ -21,7 +21,7 @@
     </h1>
     <main class="gap-1">
       <f-col class="gap-1">
-        <textarea id="input">sx * sy</textarea>
+        <textarea id="input" placeholder="Enter an equation!">sx * sy</textarea>
         <f-row class="gap-1 ui-element">
           <button id="restart-btn">Restart</button>
           <button id="randomize-btn">Randomize</button>
@@ -49,6 +49,62 @@
       </f-col>
       <code id="error-msg"></code>
     </main>
+    <div>
+      <h2>Quick Start Guide</h2>
+      <p>BROKEN_FIELD is a tiny shader toy inspired by <a href="http://canonical.org/~kragen/bytebeat/">Bytebeat
+          music</a>. The textbox above defines a simple per-pixel shader. The output of the shader is then displayed
+        on the canvas on the right. For each pixel, the program is expected to output an integer. The value of the
+        integer, modulo 256, determines the brightness of the corresponding outputted pixel.</p>
+      <p>As an example, suppose we have the following program: <code>sx * sy</code>. This program is run for each
+        pixel of the output canvas. Hence, for the pixel at coordinates <code>(50, 30)</code>, the output of the program
+        is <code>50 * 30 = 1500 mod 256 = 220 = 0xDC</code>. By default, this gives that particular pixel the hex color
+        <code>0x00DC00</code>. This process is repeated for every pixel, which forms the final output image.
+      </p>
+      <p>Note that these programs are just fragments of <a
+           href="https://en.wikipedia.org/wiki/OpenGL_Shading_Language">GLSL</a> inserted into a GLSL shader. Hence, all
+        of the GLSL functions are available. See below for some technical details.</p>
+      <h2>Complete list of variables</h2>
+      <ul>
+        <li><code>t</code> - <b>t</b>ime - Equals the current frame. The rate at which this value increases (or
+          decreases) can be controlled with the "Time Scale" slider.</li>
+        <li><code>sx</code> - <b>s</b>creen <b>x</b>-coordinate - Equals the x-coordinate of the pixel. Note that the x-coordinate increases in the rightwards direction.</li>
+        <li><code>sy</code> - <b>s</b>creen <b>y</b>-coordinate - Equals the y-coordinate of the pixel. Note that the y-coordinate increases in the upwards direction.</li>
+        <li><code>mx</code> - <b>m</b>ouse <b>x</b>-coordinate - Equals the x-coordinate of the mouse. Note that the x-coordinate increases in the rightwards direction.</li>
+        <li><code>my</code> - <b>m</b>ouse <b>y</b>-coordinate - Equals the y-coordinate of the mouse. Note that the y-coordinate increases in the upwards direction.</li>
+        <li><code>kx</code> - <b>k</b>eyboard <b>x</b>-coordinate - Increased by one by pressing right and decreased by one by pressing left.</li>
+        <li><code>ky</code> - <b>k</b>eyboard <b>y</b>-coordinate - Increased by one by pressing up and decreased by one by pressing down.</li>
+
+      </ul>
+      <p>You can append <code>_f</code> to any of these variables to get a float-valued verison of the variable. For example, <code>t_f</code> is equal to the current frame value, but as a float.</p>
+      <h2>Technical Details</h2>
+      <p>All of this stuff is just a GLSL fragment shader under the hood. Specifically, it's this shader:</p>
+      <pre>#version 300 es
+precision mediump float;
+
+uniform float wrap_value;
+uniform int t, mx, my, kx, ky;
+uniform float t_f, mx_f, my_f, kx_f, ky_f;
+
+uniform vec3 color;
+out vec4 fragColor;
+
+void main() {
+  float sx_f = gl_FragCoord.x - 0.5;
+  float sy_f = gl_FragCoord.y - 0.5;
+  int sx = int(sx_f);
+  int sy = int(sy_f);
+  int value = ${bytebeat};
+  float value_out = float(value % int(wrap_value)) / wrap_value;
+  fragColor = vec4(value_out * color, 1.0);
+}</pre>
+      <p>In the shader above, <code>${bytebeat}</code> is substituted with whatever you type into the textarea.</p>
+      <p>(The vertext shader is extremely boring. it is literally this four-line shader:<pre>#version 300 es
+in vec4 aVertexPosition;
+
+void main() {
+    gl_Position = aVertexPosition;
+}</pre></p>
+    </div>
 </body>
 
 </html>
