@@ -455,9 +455,16 @@ function main() {
       let bytebeat = params.get("bytebeat");
       if (bytebeat) {
          try {
-            bytebeat = atob(bytebeat);
+            let decoded = atob(bytebeat);
+            // Check that the string is valid ASCII
+            // Almost every valid program is probably going to be ASCII
+            if (/^[\x00-\x7F]*$/.test(decoded)) {
+               bytebeat = decoded;
+            } else {
+               console.log(`bytebeat is not valid ASCII when decoded as base64, assuming it's a raw bytebeat instead`);
+            }
          } catch (e) {
-            console.log(`bytebeat is not valid base64, assuming it's a raw bytebeat instead`);
+            console.log(`bytebeat is not encoded as valid base64, assuming it's a raw bytebeat instead`);
          }
       } else {
          bytebeat = "(sx ^ sy) + t";
