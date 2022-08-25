@@ -1,3 +1,4 @@
+import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 // HTML elements we wish to attach event handlers to.
@@ -362,6 +363,14 @@ function update_coord_display() {
    coord_display.innerText = `Mouse: (${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})\nKeyboard: (${KEYBOARD_X}, ${KEYBOARD_Y})`;
 }
 
+function randomize_color() {
+   const hue = Math.random();
+   const saturation = Math.random();
+   let random_color = `#${RGBColor.fromHSV(hue, saturation, 1.0).toHexString()}`
+   color_input.value = random_color;
+}
+
+
 /**
  * Take a screenshot and save it to the screenshot_display element.
  * @param {WebGL2RenderingContext} gl
@@ -396,15 +405,14 @@ function main() {
    })
 
    randomize_button.addEventListener("click", () => {
-      const hue = Math.random();
-      const saturation = Math.random();
-      let random_color = `#${RGBColor.fromHSV(hue, saturation, 1.0).toHexString()}`
-      color_input.value = random_color;
+      randomize_color();
+
+      bytebeat_textarea.value = random_bytebeat();
       on_event(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
-      alert("TODO!");
+      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
       on_event(gl, true);
    })
 
