@@ -396,15 +396,9 @@ function main() {
    })
 
    randomize_button.addEventListener("click", () => {
-      const colors = [
-         "#FFFFFF",
-         "#0000FF",
-         "#00FF00",
-         "#FF0000",
-         "#FFFF00",
-         "#FF00FF",
-         "#00FFFF"];
-      let random_color = colors[Math.floor(Math.random() * colors.length)];
+      const hue = Math.random();
+      const saturation = Math.random();
+      let random_color = `#${RGBColor.fromHSV(hue, saturation, 1.0).toHexString()}`
       color_input.value = random_color;
       on_event(gl, true);
    })
