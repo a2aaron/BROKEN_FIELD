@@ -54,11 +54,7 @@ class BinOp {
      * @returns {BinOp}
      */
     static random(max_depth) {
-        let op = choose(
-            "+", "-", "*", "/",
-            "%", "<<", ">>",
-            "&", "^", "|",
-            "&", "^", "|");
+        let op = random_op();
         if (max_depth == 0) {
             let left = Value.random();
             let right = Value.random();
@@ -88,6 +84,29 @@ export function random_bytebeat() {
  * @returns {string}
  */
 export function mutate_bytebeat(bytebeat) {
+    let match_values = /t|sx|sy|kx|ky|mx|my|[\d]+/g;
+    let match_operators = /\+|\-|\*|\/|\^|\&|\||\%|\>\>|\<\</g;
+
+    console.log(bytebeat);
+
+    bytebeat = bytebeat.replace(match_values, (match, ...rest) => {
+        console.log(match);
+        if (Math.random() < 0.25) {
+            console.log("h");
+            return Value.random().eval();
+        } else {
+            return match;
+        }
+    })
+
+    bytebeat = bytebeat.replace(match_operators, (match, ...rest) => {
+        if (Math.random() < 0.25) {
+            return random_op();
+        } else {
+            return match;
+        }
+    })
+
     return bytebeat;
 }
 
@@ -101,4 +120,12 @@ export function mutate_bytebeat(bytebeat) {
 function choose(...values) {
     let index = Math.floor(Math.random() * values.length);
     return values[index];
+}
+
+function random_op() {
+    return choose(
+        "+", "-", "*", "/",
+        "%", "<<", ">>",
+        "&", "^", "|",
+        "&", "^", "|");
 }
