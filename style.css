@@ -32,14 +32,23 @@ textarea {
     height: 100px;
 }
 
+button {
+    width: fit-content;
+    height: fit-content;
+}
+
 main {
     display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 5fr);
+    grid-template-columns: minmax(0, 1fr) 512px;
     grid-template-rows: fit-content(0);
 }
 
-@media (max-width: 850px) {
-    main { grid-template-columns: 1fr; }   
+@media (max-width: 950px) {
+    main { grid-template-columns: 1fr; }
+}
+
+.canvas-column {
+    width: 512px;
 }
 
 .ui-element {
@@ -58,6 +67,14 @@ main {
 
 #share-confirm {
     pointer-events: none;
+}
+
+#screenshot-display {
+    width: 25%;
+    height: 128px;
+    border: none;
+    background-color: black;
+    display: inline-block;
 }
 
 @keyframes fadeOut {

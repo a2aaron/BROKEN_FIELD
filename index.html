@@ -26,7 +26,9 @@
           <button id="restart-btn">Restart</button>
           <button id="randomize-btn">Randomize</button>
           <button id="mutate-btn">Mutate</button>
-          <button id="share-btn">Copy Sharable Link</button>
+        </f-row>
+        <f-row class="gap-1 ui-element">
+          <button id="share-btn">Copy Sharable Link to Clipboard</button>
           <div id="share-confirm"></div>
         </f-row>
         <f-row class="gap-1 ui-element">
@@ -43,18 +45,24 @@
           <input type="number" id="wrapping-value" value="256">
         </f-row>
       </f-col>
-      <f-col class="gap-1">
+      <f-col class="gap-1 canvas-column">
         <canvas id="canvas" height="1024" , width="1024"></canvas>
-        <div id="coord-display"></div>
+        <f-row class="gap-2">
+          <div id="coord-display"></div>
+          <f-sp></f-sp>
+          <button id="screenshot-btn">Take Screenshot</button>
+          <img id="screenshot-display" />
+        </f-row>
       </f-col>
       <code id="error-msg"></code>
     </main>
     <div>
       <h2>Quick Start Guide</h2>
       <p>BROKEN_FIELD is a tiny shader toy inspired by <a href="http://canonical.org/~kragen/bytebeat/">Bytebeat
-          music</a>. The textbox above defines a simple per-pixel shader. The output of the shader is then displayed
-        on the canvas on the right. For each pixel, the program is expected to output an integer. The value of the
-        integer, modulo 256, determines the brightness of the corresponding outputted pixel.</p>
+          music</a>. BROKEN_FIELD can be used to create or procedurally generate tiny, interactive art programs. The
+        textbox above defines a simple per-pixel shader. The output of the shader is then displayed on the canvas on the
+        right. For each pixel, the program is expected to output an integer. The value of the integer, modulo 256,
+        determines the brightness of the corresponding outputted pixel.</p>
       <p>As an example, suppose we have the following program: <code>sx * sy</code>. This program is run for each
         pixel of the output canvas. Hence, for the pixel at coordinates <code>(50, 30)</code>, the output of the program
         is <code>50 * 30 = 1500 mod 256 = 220 = 0xDC</code>. By default, this gives that particular pixel the hex color
@@ -63,19 +71,35 @@
       <p>Note that these programs are just fragments of <a
            href="https://en.wikipedia.org/wiki/OpenGL_Shading_Language">GLSL</a> inserted into a GLSL shader. Hence, all
         of the GLSL functions are available. See below for some technical details.</p>
+      <h2>Controls</h2>
+      <p>You can reset the currently running shader's variables by using the "Restart" button.</p>
+      <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.</p>
+      <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
+        canvas.</p>
+
+      <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.</p>
+      <p>The color of the shader can be controlled with the color picker.</p>
+      <p>The wrap value (that is, what value the shader output is moduloed by) can also be set. This defaults to 256.</p>
       <h2>Complete list of variables</h2>
       <ul>
         <li><code>t</code> - <b>t</b>ime - Equals the current frame. The rate at which this value increases (or
           decreases) can be controlled with the "Time Scale" slider.</li>
-        <li><code>sx</code> - <b>s</b>creen <b>x</b>-coordinate - Equals the x-coordinate of the pixel. Note that the x-coordinate increases in the rightwards direction.</li>
-        <li><code>sy</code> - <b>s</b>creen <b>y</b>-coordinate - Equals the y-coordinate of the pixel. Note that the y-coordinate increases in the upwards direction.</li>
-        <li><code>mx</code> - <b>m</b>ouse <b>x</b>-coordinate - Equals the x-coordinate of the mouse. Note that the x-coordinate increases in the rightwards direction.</li>
-        <li><code>my</code> - <b>m</b>ouse <b>y</b>-coordinate - Equals the y-coordinate of the mouse. Note that the y-coordinate increases in the upwards direction.</li>
-        <li><code>kx</code> - <b>k</b>eyboard <b>x</b>-coordinate - Increased by one by pressing right and decreased by one by pressing left.</li>
-        <li><code>ky</code> - <b>k</b>eyboard <b>y</b>-coordinate - Increased by one by pressing up and decreased by one by pressing down.</li>
+        <li><code>sx</code> - <b>s</b>creen <b>x</b>-coordinate - Equals the x-coordinate of the pixel. Note that the
+          x-coordinate increases in the rightwards direction.</li>
+        <li><code>sy</code> - <b>s</b>creen <b>y</b>-coordinate - Equals the y-coordinate of the pixel. Note that the
+          y-coordinate increases in the upwards direction.</li>
+        <li><code>mx</code> - <b>m</b>ouse <b>x</b>-coordinate - Equals the x-coordinate of the mouse. Note that the
+          x-coordinate increases in the rightwards direction.</li>
+        <li><code>my</code> - <b>m</b>ouse <b>y</b>-coordinate - Equals the y-coordinate of the mouse. Note that the
+          y-coordinate increases in the upwards direction.</li>
+        <li><code>kx</code> - <b>k</b>eyboard <b>x</b>-coordinate - Increased by one by pressing right and decreased by
+          one by pressing left.</li>
+        <li><code>ky</code> - <b>k</b>eyboard <b>y</b>-coordinate - Increased by one by pressing up and decreased by one
+          by pressing down.</li>
 
       </ul>
-      <p>You can append <code>_f</code> to any of these variables to get a float-valued verison of the variable. For example, <code>t_f</code> is equal to the current frame value, but as a float.</p>
+      <p>You can append <code>_f</code> to any of these variables to get a float-valued verison of the variable. For
+        example, <code>t_f</code> is equal to the current frame value, but as a float.</p>
       <h2>Technical Details</h2>
       <p>All of this stuff is just a GLSL fragment shader under the hood. Specifically, it's this shader:</p>
       <pre>#version 300 es
@@ -98,12 +122,14 @@ void main() {
   fragColor = vec4(value_out * color, 1.0);
 }</pre>
       <p>In the shader above, <code>${bytebeat}</code> is substituted with whatever you type into the textarea.</p>
-      <p>(The vertext shader is extremely boring. it is literally this four-line shader:<pre>#version 300 es
+      <p>(The vertext shader is extremely boring. it is literally this four-line shader:
+      <pre>#version 300 es
 in vec4 aVertexPosition;
 
 void main() {
     gl_Position = aVertexPosition;
-}</pre></p>
+}</pre>
+      </p>
     </div>
 </body>
 

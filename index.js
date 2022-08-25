@@ -2,6 +2,7 @@ import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./
 
 // HTML elements we wish to attach event handlers to.
 // HTML elements we wish to reference
+const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
 
 const bytebeat_textarea = getTypedElementById(HTMLTextAreaElement, "input");
 const wrap_value_input = getTypedElementById(HTMLInputElement, "wrapping-value");
@@ -15,7 +16,12 @@ const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
 const share_button = getTypedElementById(HTMLButtonElement, "share-btn");
 const share_display = getTypedElementById(HTMLElement, "share-confirm");
 
+const screenshot_button = getTypedElementById(HTMLButtonElement, "screenshot-btn");
+const screenshot_display = getTypedElementById(HTMLImageElement, "screenshot-display");
+
 const coord_display = getTypedElementById(HTMLElement, "coord-display");
+
+const gl = unwrap(canvas.getContext("webgl2"));
 
 // Global variables for the current bytebeat. This contains things like the current mouse/keyboard
 // values, as well the currently loaded bytebeat
@@ -356,10 +362,22 @@ function update_coord_display() {
    coord_display.innerText = `Mouse: (${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})\nKeyboard: (${KEYBOARD_X}, ${KEYBOARD_Y})`;
 }
 
-function main() {
-   const canvas = getTypedElementById(HTMLCanvasElement, "canvas");
-   const gl = unwrap(canvas.getContext("webgl2"));
+/**
+ * Take a screenshot and save it to the screenshot_display element.
+ * @param {WebGL2RenderingContext} gl
+ * @param {HTMLCanvasElement} canvas
+ */
+function take_screenshot(gl, canvas) {
+   // Force a render. This is needed due to the way WebGL works.
+   // See the links below for more information.
+   // https://stackoverflow.com/questions/32556939/saving-canvas-to-image-via-canvas-todataurl-results-in-black-rectangle?noredirect=1&lq=1
+   // https://webglfundamentals.org/webgl/lessons/webgl-tips.html
+   on_event(gl, false);
+   const image_data = canvas.toDataURL('png');
+   screenshot_display.src = image_data;
+}
 
+function main() {
    bytebeat_textarea.addEventListener("input", () => on_event(gl, true));
    wrap_value_input.addEventListener("input", () => on_event(gl, false));
    color_input.addEventListener("input", () => on_event(gl, false));
@@ -413,6 +431,10 @@ function main() {
       share_display.style.animation = "fadeOut 1s forwards";
    })
 
+   screenshot_button.addEventListener("click", () => {
+      take_screenshot(gl, canvas);
+   })
+
    // Handle mouse movements on the canvas
    canvas.addEventListener("mousemove", (event) => {
       const rect = canvas.getBoundingClientRect();
@@ -421,6 +443,9 @@ function main() {
 
       update_coord_display();
    })
+
+   // Take a screenshot on mouse press.
+   canvas.addEventListener("click", () => take_screenshot(gl, canvas));
 
    // Handle arrow keys
    window.addEventListener("keydown", (event) => {
@@ -433,7 +458,6 @@ function main() {
       } else if (event.key == "ArrowDown") {
          KEYBOARD_Y -= 1;
       }
-
 
       update_coord_display();
    })
