@@ -46,6 +46,12 @@
           <label for="wrapping-value">Wrap Value</label>
           <input type="number" id="wrapping-value" value="256">
         </ui-element>
+        <ui-element>
+          <label>Canvas Size: </label>
+          <input type="number" id="canvas-size-x", value="1024", placeholder="x" class="small-text-input" min="1">
+          x
+          <input type="number" id="canvas-size-y", value="1024", placeholder="y" class="small-text-input" min="1">
+        </ui-element>
       </f-col>
       <f-col class="gap-1 canvas-column">
         <canvas id="canvas" height="1024" , width="1024" tabindex="1"></canvas>
@@ -65,8 +71,8 @@
           <ui-element>
             <label for="video-encoding">Video Format:</label>
             <select id="video-encoding">
-              <option value="gif">GIF</option>
               <option value="webm">WebM</option>
+              <option value="gif">GIF</option>
             </select>
           </ui-element>
           <ui-element>

@@ -13,6 +13,9 @@ const color_input = getTypedElementById(HTMLInputElement, "color");
 const time_scale_input = getTypedElementById(HTMLInputElement, "time-scale");
 const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display");
 
+const canvas_size_x_input = getTypedElementById(HTMLInputElement, "canvas-size-x");
+const canvas_size_y_input = getTypedElementById(HTMLInputElement, "canvas-size-y");
+
 const restart_button = getTypedElementById(HTMLButtonElement, "restart-btn");
 const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn");
 const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
@@ -103,6 +106,8 @@ function get_ui_parameters() {
       wrap_value: parseFloat(wrap_value_input.value),
       color: RGBColor.fromHexCode(color_input.value) ?? new RGBColor(0x00, 0xFF, 0x00),
       time_scale: parseFloat(time_scale_input.value),
+      width: parseInt(canvas_size_x_input.value),
+      height: parseInt(canvas_size_y_input.value),
    };
    return parameters;
 }
@@ -119,6 +124,8 @@ function params_to_string(params) {
       color: "#" + params.color.toHexString(),
       wrap_value: params.wrap_value.toFixed(0),
       time_scale: params.time_scale.toFixed(2),
+      width: canvas_size_x_input.value,
+      height: canvas_size_y_input.value,
    }
    return stringy_params;
 }
@@ -132,6 +139,8 @@ function set_ui(params) {
    wrap_value_input.value = params.wrap_value;
    time_scale_input.value = params.time_scale;
    color_input.value = params.color;
+   canvas_size_x_input.value = params.width;
+   canvas_size_y_input.value = params.height;
 }
 
 function update_coord_display() {
@@ -169,6 +178,14 @@ function main() {
       render_or_compile(gl, false);
    });
 
+   canvas_size_x_input.addEventListener("input", () => {
+      canvas.width = parseInt(canvas_size_x_input.value);
+   })
+
+   canvas_size_y_input.addEventListener("input", () => {
+      canvas.height = parseInt(canvas_size_y_input.value);
+   })
+
    restart_button.addEventListener("click", () => {
       CURRENT_FRAME = 0;
       KEYBOARD_X = 0;
@@ -196,6 +213,8 @@ function main() {
          color: params.color.toHexString(),
          wrap_value: params.wrap_value.toFixed(0),
          time_scale: params.time_scale.toFixed(2),
+         width: params.width,
+         height: params.height,
       }
       const url = new URL(window.location.href);
       url.search = new URLSearchParams(stringy_params).toString();
@@ -244,8 +263,9 @@ function main() {
       const end_t = parseInt(end_t_input.value);
 
       if (BYTEBEAT_PROGRAM_INFO != null) {
-         let bytebeat = get_ui_parameters().bytebeat;
-         recorder.manual_recording(bytebeat, get_bytebeat_parameters(), start_t, end_t);
+         let { bytebeat, height, width } = get_ui_parameters();
+         // seems that browsers throttle anything under 20ms/frame.
+         recorder.manual_recording(bytebeat, get_bytebeat_parameters(), start_t, end_t, height, width, 20);
       } else {
          console.log("Couldn't record--BYTEBEAT_PROGRAM_INFO is null!");
       }
@@ -293,9 +313,14 @@ function main() {
          color: color ? `#${color}` : "#00FF00",
          wrap_value: params.get("wrap_value") ?? "256",
          time_scale: params.get("time_scale") ?? "0.5",
+         width: params.get("width") ?? "1024",
+         height: params.get("height") ?? "1024",
       };
       set_ui(string_params);
    }
+   canvas.width = parseInt(canvas_size_x_input.value);
+   canvas.height = parseInt(canvas_size_y_input.value);
+
 
    render_or_compile(gl, true);
    animation_loop();

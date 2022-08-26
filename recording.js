@@ -1,8 +1,6 @@
-// import * as gif_js from "./gifjs/gif.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, unwrap } from "./util.js";
 
-// debugger;
 
 export class Recorder {
     /** @type {"webm" | "gif" | null} */
@@ -59,44 +57,40 @@ export class Recorder {
      * @param {number} start_t
      * @param {number} end_t
      * @param {string} bytebeat
+     * @param {number} width
+     * @param {number} height
+     * @param {number} delay
      */
-    manual_recording(bytebeat, params, start_t, end_t) {
+    manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
         this.#current_recording = this.#selected_format();
+
+        let canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        let gl = unwrap(canvas.getContext("webgl2"));
+        let programInfo = compileBytebeat(gl, bytebeat);
 
         if (this.#selected_format() == "webm") {
         } else {
-            let canvas = document.createElement("canvas");
-            canvas.width = 1024;
-            canvas.height = 1024;
-            let gl = unwrap(canvas.getContext("webgl2"));
-            let programInfo = compileBytebeat(gl, bytebeat);
-
-            let gif = new GIF({
-                quality: 0,
-                background: "#000000",
-                width: 1024,
-                height: 1024,
-                dither: false,
-                repeat: 0, // repeat forever
-            });
-
-            for (let i = start_t; i <= end_t; i++) {
-                params.time = i;
-                renderBytebeat(gl, programInfo, params);
-                gif.addFrame(canvas, { copy: true, delay: 10 });
-
-                this.#show_recording_indicator(`Recording... (Frame ${i - start_t}/${end_t - start_t})`);
-            }
+            let gif = new GIF(gif_settings(width, height));
 
             gif.on('finished', (/** @type {Blob} */ blob) => {
                 this.video_display_gif.src = URL.createObjectURL(blob);
                 this.#hide_recording_indicator();
             })
 
-            this.#show_recording_indicator(`Rendering... (Rendering to GIF...)`);
+            gif.on('progress', (progress) => {
+                this.#show_recording_indicator(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
+            })
+
+            for (let i = start_t; i <= end_t; i++) {
+                params.time = i;
+                renderBytebeat(gl, programInfo, params);
+                gif.addFrame(canvas, { copy: true, delay });
+                this.#show_recording_indicator(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
+            }
+
             gif.render();
-
-
         }
 
         this.#show_video_element(this.#selected_format());
@@ -183,3 +177,19 @@ class MediaRecorderWrapper {
         this.media_recorder.stop();
     }
 }
+
+/**
+ * @param {any} width
+ * @param {any} height
+ */
+function gif_settings(width, height) {
+    return {
+        quality: 0,
+        background: "#000000",
+        width,
+        height,
+        dither: false,
+        repeat: 0, // repeat forever
+        workers: 32,
+    }
+};
