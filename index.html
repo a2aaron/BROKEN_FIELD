@@ -78,14 +78,19 @@
         of the GLSL functions are available. See below for some technical details.</p>
       <h2>Controls</h2>
       <p>You can reset the currently running shader's variables by using the "Restart" button.</p>
-      <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.</p>
+      <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.
+      </p>
       <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
         canvas.</p>
-        <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.</p>
+      <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.
+        (Holding "Shift" while starting the recording will reset the current frame time to zero, allowing you to capture
+        the start of the shader</p>
 
-      <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.</p>
+      <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.
+      </p>
       <p>The color of the shader can be controlled with the color picker.</p>
-      <p>The wrap value (that is, what value the shader output is moduloed by) can also be set. This defaults to 256.</p>
+      <p>The wrap value (that is, what value the shader output is moduloed by) can also be set. This defaults to 256.
+      </p>
       <h2>Complete list of variables</h2>
       <ul>
         <li><code>t</code> - <b>t</b>ime - Equals the current frame. The rate at which this value increases (or

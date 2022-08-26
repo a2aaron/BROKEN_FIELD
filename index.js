@@ -233,10 +233,13 @@ function main() {
 
    // Start or stop recording
    canvas.addEventListener("keydown", (event) => {
-      if (event.key == "r") {
+      if (event.key == "r" || event.key == "R") {
          if (media_recorder.state == "recording") {
             media_recorder.stop();
          } else {
+            if (event.shiftKey) {
+               CURRENT_FRAME = 0;
+            }
             media_recorder.start();
          }
       }
