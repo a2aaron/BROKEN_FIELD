@@ -12,11 +12,12 @@ export class Recorder {
         /** @type {BlobPart[]} */
         this.video_chunks = [];
         this.recording_indicator = getTypedElementById(HTMLElement, "recording-indicator");
-        this.video_display_webm = getTypedElementById(HTMLVideoElement, "video-display-webm");
-        this.video_display_gif = getTypedElementById(HTMLImageElement, "video-display-gif");
-        this.encoding_selector = getTypedElementById(HTMLSelectElement, "video-encoding");
+        this.video_display = getTypedElementById(HTMLVideoElement, "video-display");
+        this.image_display = getTypedElementById(HTMLImageElement, "image-display");
 
-        this.recorder = new MediaRecorderWrapper(canvas.captureStream(), this.video_display_webm);
+        this.canvas = canvas;
+
+        this.recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.video_display);
 
         this.#current_recording = null;
     }
@@ -26,28 +27,20 @@ export class Recorder {
     }
 
     start() {
+        if (this.is_recording()) { return; }
+
         this.video_chunks = [];
-        this.#show_recording_indicator("Recording... (Press R to stop recording)");
-        if (this.#selected_format() == "webm") {
-            this.recorder.start();
-            this.#current_recording = "webm";
-        } else {
-            this.#current_recording = "gif";
-        }
+        this.recorder.start();
+        this.#show_recording_indicator("Recording WebM... (Press R to stop recording)");
+        this.#current_recording = "webm";
     }
 
     stop() {
-        if (this.#current_recording == null) { return; }
+        if (this.#current_recording != "webm") { return; }
 
         this.#hide_recording_indicator();
-
-        if (this.#current_recording == "webm") {
-            this.recorder.stop();
-
-        } else if (this.#current_recording == "gif") {
-        }
-
-        this.#show_video_element(this.#current_recording);
+        this.recorder.stop();
+        this.show_video_element("video");
         this.#current_recording = null;
     }
 
@@ -62,63 +55,53 @@ export class Recorder {
      * @param {number} delay
      */
     manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
-        this.#current_recording = this.#selected_format();
+        if (this.is_recording()) { return; }
 
+        this.#current_recording = "gif";
+
+        // Set up the canvas
         let canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         let gl = unwrap(canvas.getContext("webgl2"));
         let programInfo = compileBytebeat(gl, bytebeat);
 
-        if (this.#selected_format() == "webm") {
-        } else {
-            let gif = new GIF(gif_settings(width, height));
+        // Set up the gif.js GIF object
+        let gif = new GIF(gif_settings(width, height));
 
-            gif.on('finished', (/** @type {Blob} */ blob) => {
-                this.video_display_gif.src = URL.createObjectURL(blob);
-                this.#hide_recording_indicator();
-            })
+        gif.on('finished', (/** @type {Blob} */ blob) => {
+            this.#hide_recording_indicator();
 
-            gif.on('progress', (progress) => {
-                this.#show_recording_indicator(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
-            })
+            this.image_display.src = URL.createObjectURL(blob);
+            this.show_video_element("image");
+            this.#current_recording = null;
+        })
 
-            for (let i = start_t; i <= end_t; i++) {
-                params.time = i;
-                renderBytebeat(gl, programInfo, params);
-                gif.addFrame(canvas, { copy: true, delay });
-                this.#show_recording_indicator(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
-            }
+        gif.on('progress', (/** @type { number } */ progress) => {
+            this.#show_recording_indicator(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
+        })
 
-            gif.render();
+        // Record all frames
+        for (let i = start_t; i <= end_t; i++) {
+            params.time = i;
+            renderBytebeat(gl, programInfo, params);
+            gif.addFrame(canvas, { copy: true, delay });
+            this.#show_recording_indicator(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
         }
 
-        this.#show_video_element(this.#selected_format());
-        this.#current_recording = null;
+        gif.render();
     }
 
     /**
-     * @param {"webm" | "gif"} format
+     * @param {"video" | "image"} format
      */
-    #show_video_element(format) {
-        if (format == "webm") {
-            this.video_display_webm.classList.remove("hidden");
-            this.video_display_gif.classList.add("hidden");
-        } else if (format == "gif") {
-            this.video_display_gif.classList.remove("hidden");
-            this.video_display_webm.classList.add("hidden");
-        }
-    }
-
-    /**
-     * @returns {"webm" | "gif"}
-     */
-    #selected_format() {
-        let value = this.encoding_selector.options[this.encoding_selector.selectedIndex].value;
-        if (value == "webm" || value == "gif") {
-            return value;
-        } else {
-            throw new Error("Invalid video format selection.");
+    show_video_element(format) {
+        if (format == "video") {
+            this.video_display.classList.remove("hidden");
+            this.image_display.classList.add("hidden");
+        } else if (format == "image") {
+            this.video_display.classList.add("hidden");
+            this.image_display.classList.remove("hidden");
         }
     }
 
@@ -132,15 +115,6 @@ export class Recorder {
 
     #hide_recording_indicator() {
         this.recording_indicator.classList.add("hidden");
-    }
-
-    /**
-     * @param {BlobPart[]} blobParts
-     */
-    #output_webm(blobParts) {
-        const blob = new Blob(blobParts, { type: "video/webm" });
-        console.log(blobParts, blob, this.video_chunks);
-        this.video_display_webm.src = URL.createObjectURL(blob);
     }
 }
 

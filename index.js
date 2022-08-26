@@ -23,7 +23,7 @@ const share_button = getTypedElementById(HTMLButtonElement, "share-btn");
 const share_display = getTypedElementById(HTMLElement, "share-confirm");
 
 const screenshot_button = getTypedElementById(HTMLButtonElement, "screenshot-btn");
-const screenshot_display = getTypedElementById(HTMLImageElement, "screenshot-display");
+const screenshot_display = getTypedElementById(HTMLImageElement, "image-display");
 
 const coord_display = getTypedElementById(HTMLElement, "coord-display");
 
@@ -51,7 +51,7 @@ const recorder = new Recorder(canvas);
  * @param {WebGL2RenderingContext} gl
  * @param {boolean} should_recompile if true, then recompile the shader
  */
-function render_or_compile(gl, should_recompile) {
+export function render_or_compile(gl, should_recompile) {
    const params = get_ui_parameters();
    if (should_recompile) {
       try {
@@ -168,6 +168,7 @@ function take_screenshot(gl, canvas) {
    render_or_compile(gl, false);
    const image_data = canvas.toDataURL('png');
    screenshot_display.src = image_data;
+   recorder.show_video_element("image");
 }
 
 function main() {
@@ -213,8 +214,8 @@ function main() {
          color: params.color.toHexString(),
          wrap_value: params.wrap_value.toFixed(0),
          time_scale: params.time_scale.toFixed(2),
-         width: params.width,
-         height: params.height,
+         width: params.width.toString(),
+         height: params.height.toString(),
       }
       const url = new URL(window.location.href);
       url.search = new URLSearchParams(stringy_params).toString();

@@ -62,21 +62,13 @@
               <div id="recording-indicator" class="hidden">Recording...</div>
             </f-col>
             <f-sp></f-sp>
-            <img id="screenshot-display" class="small-square" />
+            <img id="image-display" class="small-square" />
+            <video autoplay width="128" id="video-display" loop poster="black.png" class="hidden small-square"></video>
         </f-col>
         <button id="screenshot-btn" class="hidden">Take Screenshot</button>
         <f-col class="gap-1 align-right">
-          <video autoplay width="128" id="video-display-webm" loop poster="black.png" class="small-square"></video>
-          <img id="video-display-gif" class="hidden small-square" />
           <ui-element>
-            <label for="video-encoding">Video Format:</label>
-            <select id="video-encoding">
-              <option value="webm">WebM</option>
-              <option value="gif">GIF</option>
-            </select>
-          </ui-element>
-          <ui-element>
-            <label>Manual Recording</label>
+            <label>Record GIF</label>
             <input type="text" placeholder="start t" id="video-encoding-start-frame" class="small-text-input">
             -
             <input type="text" placeholder="end t" id="video-encoding-end-frame" class="small-text-input">
