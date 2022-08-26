@@ -46,7 +46,7 @@ let LAST_FRAME_TIME = 0;
  * @param {WebGL2RenderingContext} gl
  * @param {boolean} should_recompile if true, then recompile the shader
  */
-function on_event(gl, should_recompile) {
+function render_or_compile(gl, should_recompile) {
    const params = get_parameters();
    if (should_recompile) {
       try {
@@ -147,24 +147,24 @@ function take_screenshot(gl, canvas) {
    // See the links below for more information.
    // https://stackoverflow.com/questions/32556939/saving-canvas-to-image-via-canvas-todataurl-results-in-black-rectangle?noredirect=1&lq=1
    // https://webglfundamentals.org/webgl/lessons/webgl-tips.html
-   on_event(gl, false);
+   render_or_compile(gl, false);
    const image_data = canvas.toDataURL('png');
    screenshot_display.src = image_data;
 }
 
 function main() {
-   bytebeat_textarea.addEventListener("input", () => on_event(gl, true));
-   wrap_value_input.addEventListener("input", () => on_event(gl, false));
-   color_input.addEventListener("input", () => on_event(gl, false));
+   bytebeat_textarea.addEventListener("input", () => render_or_compile(gl, true));
+   wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
+   color_input.addEventListener("input", () => render_or_compile(gl, false));
    time_scale_input.addEventListener("input", () => {
-      on_event(gl, false);
+      render_or_compile(gl, false);
    });
 
    restart_button.addEventListener("click", () => {
       CURRENT_FRAME = 0;
       KEYBOARD_X = 0;
       KEYBOARD_Y = 0;
-      on_event(gl, false);
+      render_or_compile(gl, false);
       update_coord_display();
    })
 
@@ -172,12 +172,12 @@ function main() {
       randomize_color();
 
       bytebeat_textarea.value = random_bytebeat();
-      on_event(gl, true);
+      render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
       bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
-      on_event(gl, true);
+      render_or_compile(gl, true);
    })
 
    share_button.addEventListener("click", () => {
@@ -259,12 +259,12 @@ function main() {
       set_ui(string_params);
    }
 
-   on_event(gl, true);
+   render_or_compile(gl, true);
    animation_loop();
    update_coord_display();
 
    function animation_loop() {
-      on_event(gl, false);
+      render_or_compile(gl, false);
       requestAnimationFrame(animation_loop);
    }
 }
