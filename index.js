@@ -24,6 +24,8 @@ const screenshot_display = getTypedElementById(HTMLImageElement, "screenshot-dis
 
 const coord_display = getTypedElementById(HTMLElement, "coord-display");
 
+const record_button = getTypedElementById(HTMLButtonElement, "video-encoding-manual-record-btn");
+
 const gl = unwrap(canvas.getContext("webgl2"));
 
 // Global variables for the current bytebeat. This contains things like the current mouse/keyboard
@@ -47,7 +49,7 @@ const recorder = new Recorder(canvas);
  * @param {boolean} should_recompile if true, then recompile the shader
  */
 function render_or_compile(gl, should_recompile) {
-   const params = get_parameters();
+   const params = get_ui_parameters();
    if (should_recompile) {
       try {
          BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, params.bytebeat);
@@ -68,26 +70,34 @@ function render_or_compile(gl, should_recompile) {
       LAST_FRAME_TIME = now;
       const frame_int = Math.round(CURRENT_FRAME);
 
-      let bytebeat_parameters = {
-         color: params.color,
-         wrap_value: params.wrap_value,
-         time: CURRENT_FRAME,
-         mouse_x: MOUSE_X,
-         mouse_y: MOUSE_Y,
-         keyboard_x: KEYBOARD_X,
-         keyboard_y: KEYBOARD_Y
-      };
+      let bytebeat_parameters = get_bytebeat_parameters();
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO, bytebeat_parameters);
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
 }
 
 /**
+ * @returns {import("./shader.js").BytebeatParams}
+ */
+function get_bytebeat_parameters() {
+   let ui_params = get_ui_parameters();
+   return {
+      color: ui_params.color,
+      wrap_value: ui_params.wrap_value,
+      time: CURRENT_FRAME,
+      mouse_x: MOUSE_X,
+      mouse_y: MOUSE_Y,
+      keyboard_x: KEYBOARD_X,
+      keyboard_y: KEYBOARD_Y
+   }
+}
+
+/**
  * Return the user parameters in a nicely parsed state.
  * @returns {typeof parameters}
- * @typedef {ReturnType<typeof get_parameters>} Parameters
+ * @typedef {ReturnType<typeof get_ui_parameters>} Parameters
  */
-function get_parameters() {
+function get_ui_parameters() {
    const parameters = {
       bytebeat: bytebeat_textarea.value,
       wrap_value: parseFloat(wrap_value_input.value),
@@ -180,7 +190,7 @@ function main() {
    })
 
    share_button.addEventListener("click", () => {
-      const params = get_parameters();
+      const params = get_ui_parameters();
       const stringy_params = {
          bytebeat: btoa(params.bytebeat),
          color: params.color.toHexString(),
@@ -223,6 +233,21 @@ function main() {
             }
             recorder.start();
          }
+      }
+   })
+
+   record_button.addEventListener("click", () => {
+      const start_t_input = getTypedElementById(HTMLInputElement, "video-encoding-start-frame");
+      const end_t_input = getTypedElementById(HTMLInputElement, "video-encoding-end-frame");
+
+      const start_t = parseInt(start_t_input.value);
+      const end_t = parseInt(end_t_input.value);
+
+      if (BYTEBEAT_PROGRAM_INFO != null) {
+         let bytebeat = get_ui_parameters().bytebeat;
+         recorder.manual_recording(bytebeat, get_bytebeat_parameters(), start_t, end_t);
+      } else {
+         console.log("Couldn't record--BYTEBEAT_PROGRAM_INFO is null!");
       }
    })
 
