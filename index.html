@@ -46,12 +46,16 @@
         </f-row>
       </f-col>
       <f-col class="gap-1 canvas-column">
-        <canvas id="canvas" height="1024" , width="1024"></canvas>
+        <canvas id="canvas" height="1024" , width="1024" tabindex="1"></canvas>
         <f-row class="gap-2">
-          <div id="coord-display"></div>
+          <f-col>
+            <div id="coord-display"></div>
+            <div id="recording-indicator" class="hidden">Recording...</div>
+          </f-col>
           <f-sp></f-sp>
-          <button id="screenshot-btn">Take Screenshot</button>
+          <button id="screenshot-btn" class="hidden">Take Screenshot</button>
           <img id="screenshot-display" />
+          <video autoplay width="128" id="video-display" loop poster="black.png"></video>
         </f-row>
       </f-col>
       <code id="error-msg"></code>
@@ -77,6 +81,7 @@
       <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.</p>
       <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
         canvas.</p>
+        <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.</p>
 
       <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.</p>
       <p>The color of the shader can be controlled with the color picker.</p>

@@ -28,9 +28,7 @@ const gl = unwrap(canvas.getContext("webgl2"));
 // Global variables for the current bytebeat. This contains things like the current mouse/keyboard
 // values, as well the currently loaded bytebeat
 
-/**
- * @type {import("./shader.js").ProgramInfo | null}
- */
+/** @type {import("./shader.js").ProgramInfo | null} */
 let BYTEBEAT_PROGRAM_INFO = null;
 
 let MOUSE_X = 0;
@@ -40,6 +38,27 @@ let KEYBOARD_Y = 0;
 let CURRENT_FRAME = 0;
 let LAST_FRAME_TIME = 0;
 
+let media_recorder = new MediaRecorder(canvas.captureStream());
+
+/** @type {BlobPart[]} */
+let video_chunks = [];
+
+const recording_indicator = getTypedElementById(HTMLElement, "recording-indicator");
+media_recorder.onstart = () => {
+   video_chunks = [];
+   recording_indicator.classList.remove("hidden");
+}
+
+media_recorder.ondataavailable = (/** @type {BlobEvent} */ e) => {
+   video_chunks.push(e.data);
+}
+
+media_recorder.onstop = () => {
+   const blob = new Blob(video_chunks);
+   const video_display = getTypedElementById(HTMLVideoElement, "video-display");
+   video_display.src = URL.createObjectURL(blob);
+   recording_indicator.classList.add("hidden");
+}
 
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
@@ -81,7 +100,6 @@ function render_or_compile(gl, should_recompile) {
       time_scale_display.innerText = `${time_scale.toFixed(2)}x (Frame: ${frame_int})`;
    }
 }
-
 
 /**
  * Return the user parameters in a nicely parsed state.
@@ -212,6 +230,17 @@ function main() {
 
    // Take a screenshot on mouse press.
    canvas.addEventListener("click", () => take_screenshot(gl, canvas));
+
+   // Start or stop recording
+   canvas.addEventListener("keydown", (event) => {
+      if (event.key == "r") {
+         if (media_recorder.state == "recording") {
+            media_recorder.stop();
+         } else {
+            media_recorder.start();
+         }
+      }
+   })
 
    // Handle arrow keys
    window.addEventListener("keydown", (event) => {
