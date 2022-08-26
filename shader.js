@@ -236,7 +236,7 @@ export function compileBytebeat(gl, bytebeat) {
             color: gl.getUniformLocation(shaderProgram, "color"),
             wrap_value: gl.getUniformLocation(shaderProgram, "wrap_value"),
             time: gl.getUniformLocation(shaderProgram, "t"),
-            time_float: gl.getUniformLocation(shaderProgram, "tf"),
+            time_float: gl.getUniformLocation(shaderProgram, "t_f"),
             mouse_x: gl.getUniformLocation(shaderProgram, "mx"),
             mouse_y: gl.getUniformLocation(shaderProgram, "my"),
             mouse_x_float: gl.getUniformLocation(shaderProgram, "mx_f"),
