@@ -22,28 +22,28 @@
     <main class="gap-1">
       <f-col class="gap-1">
         <textarea id="input" placeholder="Enter an equation!">sx * sy</textarea>
-        <f-row class="gap-1 ui-element">
+        <ui-element>
           <button id="restart-btn">Restart</button>
           <button id="randomize-btn">Randomize</button>
           <button id="mutate-btn">Mutate</button>
-        </f-row>
-        <f-row class="gap-1 ui-element">
+        </ui-element>
+        <ui-element>
           <button id="share-btn">Copy Sharable Link to Clipboard</button>
           <div id="share-confirm"></div>
-        </f-row>
-        <f-row class="gap-1 ui-element">
+        </ui-element>
+        <ui-element>
           <label for="time-scale">Time Scale</label>
           <input type="range" id="time-scale" value="0.0" min="-1.0" max="1.0" step="any">
           <p id="time-scale-display">1.0x</p>
-        </f-row>
-        <f-row class="gap-1 ui-element">
+        </ui-element>
+        <ui-element>
           <label for="color">Color</label>
           <input type="color" id="color" value="#00FF00">
-        </f-row>
-        <f-row class="gap-1 ui-element">
+        </ui-element>
+        <ui-element>
           <label for="wrapping-value">Wrap Value</label>
           <input type="number" id="wrapping-value" value="256">
-        </f-row>
+        </ui-element>
       </f-col>
       <f-col class="gap-1 canvas-column">
         <canvas id="canvas" height="1024" , width="1024" tabindex="1"></canvas>
@@ -58,19 +58,19 @@
             <img id="screenshot-display" class="small-square" />
             <video autoplay width="128" id="video-display-webm" loop poster="black.png" class="small-square"></video>
             <img id="video-display-gif" class="hidden small-square" />
-            <f-row class="gap-1 ui-element">
+            <ui-element>
               <label for="video-encoding">Video Format:</label>
               <select id="video-encoding">
                 <option value="gif">GIF</option>
                 <option value="webm">WebM</option>
               </select>
-            </f-row>
-            <f-row class="gap-1 ui-element">
+            </ui-element>
+            <ui-element>
               <label>Manual Recording</label>
               <input type="text" placeholder="start t" id="video-encoding-start-frame" class="small-text-input">
               -
               <input type="text" placeholder="end t" id="video-encoding-end-frame" class="small-text-input">
-            </f-row>
+            </ui-element>
             <button id="video-encoding-manual">Record</button>
           </f-col>
         </f-row>

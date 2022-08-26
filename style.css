@@ -12,6 +12,14 @@ f-sp, .spacer { flex: 1; }
 
 .align-right { align-items: flex-end; }
 
+/* Synonym for <f-row class="gap-1 ui-element"> */
+ui-element {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5em;
+    align-items: center;
+}
+
 h1 { margin: 0 }
 canvas {
     height: 512px;
@@ -76,6 +84,10 @@ main {
     height: 128px;
     border: none;
     background-color: black;
+}
+
+.small-text-input {
+    width: 5em;
 }
 
 @keyframes fadeOut {
