@@ -39,17 +39,17 @@ export class Recorder {
     }
 
     stop() {
+        if (this.#current_recording == null) { return; }
+
         this.#hide_recording_indicator();
 
         if (this.#current_recording == "webm") {
             this.recorder.stop();
 
-            this.video_display_webm.classList.remove("hidden");
-            this.video_display_gif.classList.add("hidden");
         } else if (this.#current_recording == "gif") {
-            this.video_display_gif.classList.remove("hidden");
-            this.video_display_webm.classList.add("hidden");
         }
+
+        this.#show_video_element(this.#current_recording);
         this.#current_recording = null;
     }
 
@@ -64,9 +64,6 @@ export class Recorder {
         this.#current_recording = this.#selected_format();
 
         if (this.#selected_format() == "webm") {
-
-            this.video_display_webm.classList.remove("hidden");
-            this.video_display_gif.classList.add("hidden");
         } else {
             let canvas = document.createElement("canvas");
             canvas.width = 1024;
@@ -98,11 +95,25 @@ export class Recorder {
 
             this.#show_recording_indicator(`Rendering... (Rendering to GIF...)`);
             gif.render();
+
+
+        }
+
+        this.#show_video_element(this.#selected_format());
+        this.#current_recording = null;
+    }
+
+    /**
+     * @param {"webm" | "gif"} format
+     */
+    #show_video_element(format) {
+        if (format == "webm") {
+            this.video_display_webm.classList.remove("hidden");
+            this.video_display_gif.classList.add("hidden");
+        } else if (format == "gif") {
             this.video_display_gif.classList.remove("hidden");
             this.video_display_webm.classList.add("hidden");
         }
-
-        this.#current_recording = null;
     }
 
     /**
@@ -124,7 +135,6 @@ export class Recorder {
         this.recording_indicator.classList.remove("hidden");
         this.recording_indicator.innerText = msg;
     }
-
 
     #hide_recording_indicator() {
         this.recording_indicator.classList.add("hidden");
