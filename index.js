@@ -1,4 +1,5 @@
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
+import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./util.js";
 
@@ -38,27 +39,7 @@ let KEYBOARD_Y = 0;
 let CURRENT_FRAME = 0;
 let LAST_FRAME_TIME = 0;
 
-let media_recorder = new MediaRecorder(canvas.captureStream());
-
-/** @type {BlobPart[]} */
-let video_chunks = [];
-
-const recording_indicator = getTypedElementById(HTMLElement, "recording-indicator");
-media_recorder.onstart = () => {
-   video_chunks = [];
-   recording_indicator.classList.remove("hidden");
-}
-
-media_recorder.ondataavailable = (/** @type {BlobEvent} */ e) => {
-   video_chunks.push(e.data);
-}
-
-media_recorder.onstop = () => {
-   const blob = new Blob(video_chunks);
-   const video_display = getTypedElementById(HTMLVideoElement, "video-display");
-   video_display.src = URL.createObjectURL(blob);
-   recording_indicator.classList.add("hidden");
-}
+const recorder = new Recorder(canvas);
 
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
@@ -234,13 +215,13 @@ function main() {
    // Start or stop recording
    canvas.addEventListener("keydown", (event) => {
       if (event.key == "r" || event.key == "R") {
-         if (media_recorder.state == "recording") {
-            media_recorder.stop();
+         if (recorder.is_recording()) {
+            recorder.stop();
          } else {
             if (event.shiftKey) {
                CURRENT_FRAME = 0;
             }
-            media_recorder.start();
+            recorder.start();
          }
       }
    })

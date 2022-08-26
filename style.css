@@ -10,6 +10,8 @@ f-sp, .spacer { flex: 1; }
 
 .hidden { display: none; }
 
+.align-right { align-items: flex-end; }
+
 h1 { margin: 0 }
 canvas {
     height: 512px;
@@ -69,12 +71,11 @@ main {
     pointer-events: none;
 }
 
-#screenshot-display {
-    width: 25%;
+.small-square {
+    width: 128px;
     height: 128px;
     border: none;
     background-color: black;
-    display: inline-block;
 }
 
 @keyframes fadeOut {

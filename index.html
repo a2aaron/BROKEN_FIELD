@@ -54,8 +54,25 @@
           </f-col>
           <f-sp></f-sp>
           <button id="screenshot-btn" class="hidden">Take Screenshot</button>
-          <img id="screenshot-display" />
-          <video autoplay width="128" id="video-display" loop poster="black.png"></video>
+          <f-col class="gap-1 align-right">
+            <img id="screenshot-display" class="small-square" />
+            <video autoplay width="128" id="video-display-webm" loop poster="black.png" class="small-square"></video>
+            <img id="video-display-gif" class="hidden small-square" />
+            <f-row class="gap-1 ui-element">
+              <label for="video-encoding">Video Format:</label>
+              <select id="video-encoding">
+                <option value="gif">GIF</option>
+                <option value="webm">WebM</option>
+              </select>
+            </f-row>
+            <f-row class="gap-1 ui-element">
+              <label>Manual Recording</label>
+              <input type="text" placeholder="start t" id="video-encoding-start-frame" class="small-text-input">
+              -
+              <input type="text" placeholder="end t" id="video-encoding-end-frame" class="small-text-input">
+            </f-row>
+            <button id="video-encoding-manual">Record</button>
+          </f-col>
         </f-row>
       </f-col>
       <code id="error-msg"></code>
