@@ -66,10 +66,6 @@ main {
     align-items: center;
 }
 
-#wrapping-value {
-    width: fit-content;
-}
-
 #error-msg {
     color: red;
     word-wrap: normal;

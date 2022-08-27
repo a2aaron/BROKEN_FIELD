@@ -34,17 +34,28 @@
           <div id="share-confirm"></div>
         </ui-element>
         <ui-element>
-          <label for="time-scale">Time Scale</label>
+          <label >Time Controls:</label>
+          <input type="number" id="time-start"  placeholder="start t", value="0", class="small-text-input">
+          -
+          <input type="number" id="time-end" placeholder="end t", value="", class="small-text-input">
+          <select id="time-loop">
+            <option value="none">No Loop</option>
+            <option value="wraparound">Loop (Wraparound)</option>
+            <option value="pingpong">Loop (Pingpong)</option>
+          </select>
+        </ui-element>
+        <ui-element>
+          <label for="time-scale">Time Scale:</label>
           <input type="range" id="time-scale" value="0.0" min="-1.0" max="1.0" step="any">
-          <p id="time-scale-display">1.0x</p>
+          <div id="time-scale-display">1.0x</div>
         </ui-element>
         <ui-element>
           <label for="color">Color</label>
           <input type="color" id="color" value="#00FF00">
         </ui-element>
         <ui-element>
-          <label for="wrapping-value">Wrap Value</label>
-          <input type="number" id="wrapping-value" value="256">
+          <label for="wrapping-value">Wrap Value:</label>
+          <input type="number" id="wrapping-value" value="256" class="small-text-input">
         </ui-element>
         <ui-element>
           <label>Canvas Size: </label>
@@ -69,9 +80,9 @@
         <f-col class="gap-1 align-right">
           <ui-element>
             <label>Manual Recording: </label>
-            <input type="text" placeholder="start t" id="video-encoding-start-frame" class="small-text-input">
+            <input type="number" placeholder="start t" id="video-encoding-start-frame" class="small-text-input">
             -
-            <input type="text" placeholder="end t" id="video-encoding-end-frame" class="small-text-input">
+            <input type="number" placeholder="end t" id="video-encoding-end-frame" class="small-text-input">
           </ui-element>
           <button id="video-encoding-manual-record-btn">Record GIF</button>
         </f-col>

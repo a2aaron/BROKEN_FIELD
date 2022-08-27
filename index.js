@@ -13,6 +13,10 @@ const color_input = getTypedElementById(HTMLInputElement, "color");
 const time_scale_input = getTypedElementById(HTMLInputElement, "time-scale");
 const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display");
 
+const time_start_input = getTypedElementById(HTMLInputElement, "time-start");
+const time_end_input = getTypedElementById(HTMLInputElement, "time-end");
+const time_loop_select = getTypedElementById(HTMLSelectElement, "time-loop");
+
 const canvas_size_x_input = getTypedElementById(HTMLInputElement, "canvas-size-x");
 const canvas_size_y_input = getTypedElementById(HTMLInputElement, "canvas-size-y");
 
@@ -108,6 +112,9 @@ function get_ui_parameters() {
       time_scale: parseFloat(time_scale_input.value),
       width: parseInt(canvas_size_x_input.value),
       height: parseInt(canvas_size_y_input.value),
+      time_start: parseInt(time_start_input.value),
+      time_end: time_end_input.value != "" ? parseInt(time_end_input.value) : null,
+      time_loop: time_loop_select.value,
    };
    return parameters;
 }
@@ -124,8 +131,11 @@ function params_to_string(params) {
       color: "#" + params.color.toHexString(),
       wrap_value: params.wrap_value.toFixed(0),
       time_scale: params.time_scale.toFixed(2),
-      width: canvas_size_x_input.value,
-      height: canvas_size_y_input.value,
+      width: params.width.toString(),
+      height: params.height.toString(),
+      time_start: params.time_start.toString(),
+      time_end: params.time_start.toString(),
+      time_loop: params.time_loop,
    }
    return stringy_params;
 }
@@ -141,6 +151,9 @@ function set_ui(params) {
    color_input.value = params.color;
    canvas_size_x_input.value = params.width;
    canvas_size_y_input.value = params.height;
+   time_start_input.value = params.time_start;
+   time_end_input.value = params.time_end;
+   time_loop_select.value = params.time_loop;
 }
 
 function update_coord_display() {
@@ -190,7 +203,7 @@ function main() {
    })
 
    restart_button.addEventListener("click", () => {
-      CURRENT_FRAME = 0;
+      CURRENT_FRAME = get_ui_parameters().time_start;
       KEYBOARD_X = 0;
       KEYBOARD_Y = 0;
       render_or_compile(gl, false);
@@ -211,14 +224,19 @@ function main() {
 
    share_button.addEventListener("click", () => {
       const params = get_ui_parameters();
-      const stringy_params = {
+      let stringy_params = {
          bytebeat: btoa(params.bytebeat),
-         color: params.color.toHexString(),
-         wrap_value: params.wrap_value.toFixed(0),
-         time_scale: params.time_scale.toFixed(2),
-         width: params.width.toString(),
-         height: params.height.toString(),
-      }
+      };
+
+      add_if_not_default("color", params.color.toHexString(), "00ff00");
+      add_if_not_default("start", params.time_start.toString(), "0");
+      add_if_not_default("end", params.time_end == null ? "" : params.time_end.toString(), "");
+      add_if_not_default("loop", params.time_loop, "none");
+      add_if_not_default("width", params.width, "1024");
+      add_if_not_default("height", params.height, "1024");
+      add_if_not_default("wrap_value", params.wrap_value, "256");
+      add_if_not_default("time_scale", params.time_scale, "0.5");
+
       const url = new URL(window.location.href);
       url.search = new URLSearchParams(stringy_params).toString();
       navigator.clipboard.writeText(url.toString());
@@ -226,6 +244,18 @@ function main() {
       share_display.style.animation = "none";
       share_display.offsetHeight;
       share_display.style.animation = "fadeOut 1s forwards";
+
+      /**
+       * @param {string} key_name
+       * @param {any} value
+       * @param {any} default_value
+       */
+      function add_if_not_default(key_name, value, default_value) {
+         if (value != default_value) {
+            // @ts-ignore
+            stringy_params[key_name] = value;
+         }
+      }
    })
 
    screenshot_button.addEventListener("click", () => {
@@ -318,6 +348,9 @@ function main() {
          time_scale: params.get("time_scale") ?? "0.5",
          width: params.get("width") ?? "1024",
          height: params.get("height") ?? "1024",
+         time_start: params.get("start") ?? "0",
+         time_end: params.get("end") ?? "",
+         time_loop: params.get("loop") ?? "none",
       };
       set_ui(string_params);
    }
