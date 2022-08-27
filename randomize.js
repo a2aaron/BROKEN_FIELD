@@ -16,7 +16,7 @@ class Value {
     /**
      * @returns {string}
      */
-    eval() {
+    toString() {
         return this.value;
     }
 
@@ -45,8 +45,8 @@ class BinOp {
     /**
      * @returns {string}
      */
-    eval() {
-        return `(${this.left.eval()} ${this.op} ${this.right.eval()})`;
+    toString() {
+        return `(${this.left.toString()} ${this.op} ${this.right.toString()})`;
     }
 
     /**
@@ -75,7 +75,7 @@ class BinOp {
  */
 export function random_bytebeat() {
     let expr = BinOp.random(20);
-    return expr.eval();
+    return expr.toString();
 }
 
 /**
@@ -93,7 +93,7 @@ export function mutate_bytebeat(bytebeat) {
         console.log(match);
         if (Math.random() < 0.25) {
             console.log("h");
-            return Value.random().eval();
+            return Value.random().toString();
         } else {
             return match;
         }
