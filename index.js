@@ -181,10 +181,12 @@ function main() {
 
    canvas_size_x_input.addEventListener("input", () => {
       canvas.width = parseInt(canvas_size_x_input.value);
+      gl.viewport(0, 0, canvas.width, canvas.height);
    })
 
    canvas_size_y_input.addEventListener("input", () => {
       canvas.height = parseInt(canvas_size_y_input.value);
+      gl.viewport(0, 0, canvas.width, canvas.height);
    })
 
    restart_button.addEventListener("click", () => {
@@ -321,7 +323,7 @@ function main() {
    }
    canvas.width = parseInt(canvas_size_x_input.value);
    canvas.height = parseInt(canvas_size_y_input.value);
-
+   gl.viewport(0, 0, canvas.width, canvas.height);
 
    render_or_compile(gl, true);
    animation_loop();
