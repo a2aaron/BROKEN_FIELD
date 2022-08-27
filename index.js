@@ -1,7 +1,7 @@
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
-import { getTypedElementById, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
+import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 // HTML elements we wish to attach event handlers to.
 // HTML elements we wish to reference
@@ -140,7 +140,7 @@ function params_to_string(params) {
       width: params.width.toString(),
       height: params.height.toString(),
       time_start: params.time_start.toString(),
-      time_end: params.time_start.toString(),
+      time_end: params.time_end ? params.time_end.toString() : "",
    }
    return stringy_params;
 }
@@ -188,6 +188,27 @@ function take_screenshot(gl, canvas) {
    recorder.show_video_element("image");
 }
 
+/** @param {StringParameters} params */
+function add_bytebeat_history(params) {
+   const history_list = getTypedElementById(HTMLUListElement, "equation-history");
+   const node = h("li", {}, clickable_bytebeat(params));
+   history_list.prepend(node);
+}
+
+/** @param {StringParameters} params */
+function clickable_bytebeat(params) {
+   let button = h("button", {},
+      h("code", {}, params.bytebeat)
+   );
+
+   button.onclick = () => {
+      set_ui(params);
+      render_or_compile(gl, true);
+   }
+   return button
+}
+
+
 function main() {
    bytebeat_textarea.addEventListener("input", () => render_or_compile(gl, true));
    wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
@@ -215,13 +236,16 @@ function main() {
    })
 
    randomize_button.addEventListener("click", () => {
-      randomize_color();
+      add_bytebeat_history(params_to_string(get_ui_parameters()));
 
+      randomize_color();
       bytebeat_textarea.value = random_bytebeat();
       render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
+      add_bytebeat_history(params_to_string(get_ui_parameters()));
+
       bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
       render_or_compile(gl, true);
    })

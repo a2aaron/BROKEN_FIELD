@@ -59,6 +59,10 @@
           x
           <input type="number" id="canvas-size-y" , value="1024" , placeholder="y" class="small-text-input" min="1">
         </ui-element>
+        <details>
+          <summary>Randomization History</summary>
+          <ul id="equation-history"></ul>
+        </details>
       </f-col>
       <f-col class="gap-1 canvas-column">
         <canvas id="canvas" height="1024" , width="1024" tabindex="1"></canvas>
@@ -120,6 +124,7 @@
           an output resolution of <code>256 x 512</code>). Very large canvas sizes may not work properly or consume a
           large amount of memory. Defaults to <code>1024 x 1024</code>.
         </li>
+        <li>Randomization History - Contains a list of all the prior randomization/mutation attempts.</li>
       </ul>
       </p>
       <h2>Image & Video Export</h2>
