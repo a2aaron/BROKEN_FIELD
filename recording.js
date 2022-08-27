@@ -82,7 +82,7 @@ export class Recorder {
         })
 
         // Record all frames
-        for (let i = start_t; i <= end_t; i++) {
+        for (let i = start_t; i < end_t; i++) {
             params.time = i;
             renderBytebeat(gl, programInfo, params);
             gif.addFrame(canvas, { copy: true, delay });
