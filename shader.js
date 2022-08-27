@@ -215,7 +215,9 @@ export function compileBytebeat(gl, bytebeat) {
       int sx = int(sx_f);
       int sy = int(sy_f);
       int value = ${bytebeat};
-      float value_out = float(value % int(wrap_value)) / wrap_value;
+      value = value % int(wrap_value);
+      value = value < 0 ? value + int(wrap_value) : value;
+      float value_out = float(value) / wrap_value;
       fragColor = vec4(value_out * color, 1.0);
     }`;
 

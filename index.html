@@ -161,7 +161,9 @@ void main() {
   int sx = int(sx_f);
   int sy = int(sy_f);
   int value = ${bytebeat};
-  float value_out = float(value % int(wrap_value)) / wrap_value;
+  value = value % int(wrap_value);
+  value = value < 0 ? value + int(wrap_value) : value;
+  float value_out = float(value) / wrap_value;
   fragColor = vec4(value_out * color, 1.0);
 }</pre>
       <p>In the shader above, <code>${bytebeat}</code> is substituted with whatever you type into the textarea.</p>
