@@ -48,9 +48,9 @@
         </ui-element>
         <ui-element>
           <label>Canvas Size: </label>
-          <input type="number" id="canvas-size-x", value="1024", placeholder="x" class="small-text-input" min="1">
+          <input type="number" id="canvas-size-x" , value="1024" , placeholder="x" class="small-text-input" min="1">
           x
-          <input type="number" id="canvas-size-y", value="1024", placeholder="y" class="small-text-input" min="1">
+          <input type="number" id="canvas-size-y" , value="1024" , placeholder="y" class="small-text-input" min="1">
         </ui-element>
       </f-col>
       <f-col class="gap-1 canvas-column">
@@ -81,7 +81,7 @@
     </main>
     <div>
       <h2>Quick Start Guide</h2>
-      <b>Important!!! BROKEN_FIELD shaders often results in rapidly flashing or flickering output!</b>
+      <strong>!!! Important !!! BROKEN_FIELD shaders often results in rapidly flashing or flickering output!</strong>
       <p>BROKEN_FIELD is a tiny shader toy inspired by <a href="http://canonical.org/~kragen/bytebeat/">Bytebeat
           music</a>. BROKEN_FIELD can be used to create or procedurally generate tiny, interactive art programs. The
         textbox above defines a simple per-pixel shader. The output of the shader is then displayed on the canvas on the
@@ -99,17 +99,30 @@
       <p>You can reset the currently running shader's variables by using the "Restart" button.</p>
       <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.
       </p>
-      <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
-        canvas.</p>
-      <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.
-        (Holding "Shift" while starting the recording will reset the current frame time to zero, allowing you to capture
-        the start of the shader</p>
 
       <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.
       </p>
       <p>The color of the shader can be controlled with the color picker.</p>
       <p>The wrap value (that is, what value the shader output is moduloed by) can also be set. This defaults to 256.
+      <p>The canvas size can also be set. This will default to 1024 x 1024. Note that, while the canvas itself does
+        not appear to change size, when taking a screenshot or recording a video, the resolution of that video will be
+        set by the canvas size value. For example, setting the canvas to 256 x 512 will result in screenshots/videos
+        that have a resolution of 256 x 512.
       </p>
+      </p>
+      <h2>Image & Video Export</h2>
+      <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
+        canvas. This will take a picture of the canvas as a PNG and is shown in the small square below the canvas.</p>
+      <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.
+        Holding "Shift" while starting the recording will reset the current frame time to zero, allowing you to capture
+        the start of the shader. This will export a WebM.</p>
+      <p>Finally, you can also record a GIF using the "Record GIF" button. The "Manual Recording" input textboxes will
+        determine
+        which values of <code>t</code> will be shown in the exported GIF. <strong>Important!</strong> Large resolutions and long
+        GIFs will take a long time to render and will have a large file size. You may want to use a site like <a
+           href="https://ezgif.com/optimize">ezgif</a> to reduce the file size of the GIF.
+      </p>
+
       <h2>Complete list of variables</h2>
       <ul>
         <li><code>t</code> - <b>t</b>ime - Equals the current frame. The rate at which this value increases (or
