@@ -240,3 +240,12 @@ export function unwrap(x) {
     }
     return x;
 }
+
+/**
+ * @param {number} n
+ * @param {number} modulus
+ */
+export function rem_euclid(n, modulus) {
+    let out = n % modulus;
+    return out < 0 ? out + Math.abs(modulus) : out;
+}

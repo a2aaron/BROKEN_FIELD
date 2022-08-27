@@ -34,14 +34,10 @@
           <div id="share-confirm"></div>
         </ui-element>
         <ui-element>
-          <label >Time Controls:</label>
-          <input type="number" id="time-start"  placeholder="start t", value="0", class="small-text-input">
+          <label>Time Controls:</label>
+          <input type="number" id="time-start" placeholder="start t" , value="0" , class="small-text-input">
           -
-          <input type="number" id="time-end" placeholder="end t", value="", class="small-text-input">
-          <select id="time-loop">
-            <option value="none">No Loop</option>
-            <option value="wraparound">Loop (Wraparound)</option>
-            <option value="pingpong">Loop (Pingpong)</option>
+          <input type="number" id="time-end" placeholder="end t" , value="" , class="small-text-input">
           </select>
         </ui-element>
         <ui-element>
@@ -107,31 +103,35 @@
            href="https://en.wikipedia.org/wiki/OpenGL_Shading_Language">GLSL</a> inserted into a GLSL shader. Hence, all
         of the GLSL functions are available. See below for some technical details.</p>
       <h2>Controls</h2>
-      <p>You can reset the currently running shader's variables by using the "Restart" button.</p>
-      <p>Generate a random shader or mutate an existing shader using the "Randomize" and "Mutate" buttons respectively.
-      </p>
-
-      <p>The "Time Scale" slider controls how fast the frame timer variable <code>t</code> increments or decremeants.
-      </p>
-      <p>The color of the shader can be controlled with the color picker.</p>
-      <p>The wrap value (that is, what value the shader output is moduloed by) can also be set. This defaults to 256.
-      <p>The canvas size can also be set. This will default to 1024 x 1024. Note that, while the canvas itself does
-        not appear to change size, when taking a screenshot or recording a video, the resolution of that video will be
-        set by the canvas size value. For example, setting the canvas to 256 x 512 will result in screenshots/videos
-        that have a resolution of 256 x 512.
-      </p>
+      <ul>
+        <li>Restart - Reset the current frame time to the start value.</li>
+        <li>Randomize - Generate a random shader.</li>
+        <li>Mutate - Mutate the current shader.</li>
+        <li>Time Scale - Set the values the frame time will start and end at. Leave the ending time blank for no looping
+        </li>
+        <li>Color - Sets the color of the shader. Defaults to green (<code>#00FF00</code>).</li>
+        <li>Wrap Value - Sets the range to which the shader ouput will be constrained to. For example, if the shader
+          outputs the value <code>735</code> and the wrap value is <code>32</code>, then the value is constrained to
+          <code>rem_euclid(735, 32) = 31</code>. Defaults to <code>256</code>.
+        </li>
+        <li>Canvas Size - Sets the <em>internal</em> canvas resolution. The canvas itself will not change size, but the
+          internal resolution will. Note that screenshots and videos will have a resolution equal to whatever this value
+          is. (So, for example, if the canvas size is <code>256 x 512</code>, then all screenshots and videos will have
+          an output resolution of <code>256 x 512</code>). Very large canvas sizes may not work properly or consume a
+          large amount of memory. Defaults to <code>1024 x 1024</code>.
+        </li>
+      </ul>
       </p>
       <h2>Image & Video Export</h2>
       <p>You can take a screenshot of the current canvas by using the "Take Screenshot" button or clicking on the
         canvas. This will take a picture of the canvas as a PNG and is shown in the small square below the canvas.</p>
       <p>You can also record a video of the current canvas by pressing "R". Press "R" again to stop the recording.
-        Holding "Shift" while starting the recording will reset the current frame time to zero, allowing you to capture
-        the start of the shader. This will export a WebM.</p>
+        Holding "Shift" while starting the recording will reset the current frame time to zero (or whatever the starting
+        frame time is set to), allowing you to capture the start of the shader. This will export a WebM.</p>
       <p>Finally, you can also record a GIF using the "Record GIF" button. The "Manual Recording" input textboxes will
-        determine
-        which values of <code>t</code> will be shown in the exported GIF. <strong>Important!</strong> Large resolutions and long
-        GIFs will take a long time to render and will have a large file size. You may want to use a site like <a
-           href="https://ezgif.com/optimize">ezgif</a> to reduce the file size of the GIF.
+        determine which values of <code>t</code> will be shown in the exported GIF. <strong>Important!</strong> Large
+        resolutions and long GIFs will take a long time to render and will have a large file size. You may want to use a
+        site like <a href="https://ezgif.com/optimize">ezgif</a> to reduce the file size of the GIF.
       </p>
 
       <h2>Complete list of variables</h2>

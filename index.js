@@ -1,7 +1,7 @@
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
-import { getTypedElementById, render_error_messages, RGBColor, unwrap } from "./util.js";
+import { getTypedElementById, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 // HTML elements we wish to attach event handlers to.
 // HTML elements we wish to reference
@@ -15,7 +15,6 @@ const time_scale_display = getTypedElementById(HTMLElement, "time-scale-display"
 
 const time_start_input = getTypedElementById(HTMLInputElement, "time-start");
 const time_end_input = getTypedElementById(HTMLInputElement, "time-end");
-const time_loop_select = getTypedElementById(HTMLSelectElement, "time-loop");
 
 const canvas_size_x_input = getTypedElementById(HTMLInputElement, "canvas-size-x");
 const canvas_size_y_input = getTypedElementById(HTMLInputElement, "canvas-size-y");
@@ -74,8 +73,16 @@ export function render_or_compile(gl, should_recompile) {
       const time_scale = (Math.pow(2, params.time_scale * params.time_scale * 10.0) - 1) * Math.sign(params.time_scale);
       const frame_delta = delta_time * time_scale;
       CURRENT_FRAME = CURRENT_FRAME + frame_delta;
+      if (params.time_end) {
+         if (params.time_start > CURRENT_FRAME || params.time_end < CURRENT_FRAME) {
+            CURRENT_FRAME = rem_euclid(CURRENT_FRAME - params.time_start, params.time_end - params.time_start) + params.time_start;
+         }
+      }
+
+      CURRENT_FRAME = isFinite(CURRENT_FRAME) ? CURRENT_FRAME : 0;
+
       LAST_FRAME_TIME = now;
-      const frame_int = Math.round(CURRENT_FRAME);
+      const frame_int = Math.trunc(CURRENT_FRAME);
 
       let bytebeat_parameters = get_bytebeat_parameters();
       renderBytebeat(gl, BYTEBEAT_PROGRAM_INFO, bytebeat_parameters);
@@ -114,7 +121,6 @@ function get_ui_parameters() {
       height: parseInt(canvas_size_y_input.value),
       time_start: parseInt(time_start_input.value),
       time_end: time_end_input.value != "" ? parseInt(time_end_input.value) : null,
-      time_loop: time_loop_select.value,
    };
    return parameters;
 }
@@ -135,7 +141,6 @@ function params_to_string(params) {
       height: params.height.toString(),
       time_start: params.time_start.toString(),
       time_end: params.time_start.toString(),
-      time_loop: params.time_loop,
    }
    return stringy_params;
 }
@@ -153,7 +158,6 @@ function set_ui(params) {
    canvas_size_y_input.value = params.height;
    time_start_input.value = params.time_start;
    time_end_input.value = params.time_end;
-   time_loop_select.value = params.time_loop;
 }
 
 function update_coord_display() {
@@ -231,7 +235,6 @@ function main() {
       add_if_not_default("color", params.color.toHexString(), "00ff00");
       add_if_not_default("start", params.time_start.toString(), "0");
       add_if_not_default("end", params.time_end == null ? "" : params.time_end.toString(), "");
-      add_if_not_default("loop", params.time_loop, "none");
       add_if_not_default("width", params.width, "1024");
       add_if_not_default("height", params.height, "1024");
       add_if_not_default("wrap_value", params.wrap_value, "256");
@@ -281,7 +284,7 @@ function main() {
             recorder.stop();
          } else {
             if (event.shiftKey) {
-               CURRENT_FRAME = 0;
+               CURRENT_FRAME = get_ui_parameters().time_start;
             }
             recorder.start();
          }
@@ -357,6 +360,8 @@ function main() {
    canvas.width = parseInt(canvas_size_x_input.value);
    canvas.height = parseInt(canvas_size_y_input.value);
    gl.viewport(0, 0, canvas.width, canvas.height);
+
+   CURRENT_FRAME = get_ui_parameters().time_start;
 
    render_or_compile(gl, true);
    animation_loop();
