@@ -69,7 +69,7 @@ export function render_or_compile(gl, should_recompile) {
       const delta_time = (now - LAST_FRAME_TIME) / 100.0;
       const time_scale = (Math.pow(2, params.time_scale * params.time_scale * 10.0) - 1) * Math.sign(params.time_scale);
       const frame_delta = delta_time * time_scale;
-      CURRENT_FRAME = Math.max(0, CURRENT_FRAME + frame_delta);
+      CURRENT_FRAME = CURRENT_FRAME + frame_delta;
       LAST_FRAME_TIME = now;
       const frame_int = Math.round(CURRENT_FRAME);
 
