@@ -24,17 +24,45 @@ class Op {
         return new Op(op);
     }
 
+    /**
+     * @param {number} a
+     * @param {number} b
+     * @returns {number}
+     */
+    eval(a, b) {
+        switch (this.value) {
+            case "+": return a + b;
+            case "-": return a - b;
+            case "*": return a * b;
+            case "/": return b == 0 ? 0 : (a / b) | 0;
+            case "%": return b == 0 ? 0 : a % b;
+            case "^": return a ^ b;
+            case "&": return a & b;
+            case "|": return a | b;
+            case ">>": return a >> b;
+            case "<<": return a << b;
+            default: throw new Error(`Unable to eval "${a} ${this.value} ${b}"`);
+        }
+    }
 }
 
+/** @template {string | number} [T=string | number] */
 class Value {
-    /** @param {string} value */
+    /** @param {T} value */
     constructor(value) {
         this.value = value;
     }
 
+    /**
+     * @returns {this is Value<number>}
+     */
+    isNumber() {
+        return typeof this.value == "number";
+    }
+
     /** @returns {string} */
     toString() {
-        return this.value;
+        return this.value.toString();
     }
 
     static random() {
@@ -96,13 +124,37 @@ export class BinOp {
         }
 
         if (left instanceof Value && right instanceof Value) {
-            if (this.op.value == "+") {
-                if (left.value == "t" && right.value == "0") {
-                    return new Value("t");
-                }
+            if (left.isNumber() && right.isNumber()) {
+                return new Value(this.op.eval(left.value, right.value));
             }
 
-
+            /** @type {[string, string, string, string | number][]} */
+            let rules = [
+                ["?a", "+", " 0", "?a"],
+                [" 0", "+", "?a", "?a"],
+                ["?a", "-", " 0", "?a"],
+                [" 0", "-", "?a", "?a"],
+                ["?a", "*", " 0", 0],
+                [" 0", "*", "?a", 0],
+                [" 0", "/", "?a", 0],
+            ];
+            for (let [rule_left, rule_op, rule_right, result] of rules) {
+                rule_left = rule_left.trim();
+                rule_op = rule_op.trim();
+                rule_right = rule_right.trim();
+                let left_matches = rule_left === "?a" || rule_left === left.value.toString();
+                let right_matches = rule_right === "?a" || rule_right === right.value.toString();
+                let op_matches = rule_op == this.op.value;
+                if (left_matches && op_matches && right_matches) {
+                    if (result == "?a" && rule_left == "?a") {
+                        return left;
+                    } else if (result == "?a" && rule_left == "?a") {
+                        return right;
+                    } else {
+                        return new Value(result);
+                    }
+                }
+            }
         }
         return new BinOp(left, this.op, right);
     }
@@ -235,8 +287,8 @@ export function try_parse(bytebeat) {
 
             let number = try_consume_number(remaining);
             if (number != null) {
-                tokens.push(new Value(number));
-                i += number.length;
+                tokens.push(new Value(number.value));
+                i += number.tokens_consumed;
                 continue;
             }
 
@@ -248,7 +300,7 @@ export function try_parse(bytebeat) {
 
     /**
      * @param {string} input
-     * @return {string | null} the number as a string
+     * @return {{value: number, tokens_consumed: number} | null}
      */
     function try_consume_number(input) {
         let number = "";
@@ -260,7 +312,7 @@ export function try_parse(bytebeat) {
                 break;
             }
         }
-        return number == "" ? null : number;
+        return number == "" ? null : { value: parseInt(number), tokens_consumed: number.length };
     }
 }
 
