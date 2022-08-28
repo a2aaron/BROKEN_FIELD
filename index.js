@@ -1,4 +1,4 @@
-import { BinOp, mutate_bytebeat, random_bytebeat, try_parse } from "./randomize.js";
+import { BinOp, mutate_bytebeat, random_bytebeat, try_parse, VARIABLES } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
@@ -210,6 +210,19 @@ function clickable_bytebeat(params) {
    return button
 }
 
+/**
+ * @returns {string[]}
+ */
+function allowed_generator_values() {
+   let values = [];
+   for (const variable of VARIABLES) {
+      let checkbox = getTypedElementById(HTMLInputElement, `randomize-enable-${variable}`);
+      if (checkbox.checked) {
+         values.push(variable);
+      }
+   }
+   return values;
+}
 
 function main() {
    bytebeat_textarea.addEventListener("input", () => render_or_compile(gl, true));
@@ -241,14 +254,16 @@ function main() {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       randomize_color();
-      bytebeat_textarea.value = random_bytebeat();
+      bytebeat_textarea.value = random_bytebeat(allowed_generator_values());
       render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
-      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
+      let mutate_ops = getTypedElementById(HTMLInputElement, "mutate-enable-ops").checked;
+      let mutate_values = getTypedElementById(HTMLInputElement, "mutate-enable-values").checked;
+      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value, allowed_generator_values(), mutate_ops, mutate_values);
       render_or_compile(gl, true);
    })
 

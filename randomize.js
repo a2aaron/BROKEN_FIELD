@@ -1,7 +1,10 @@
 import { isNumber } from "./util.js";
 
-let OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
-let VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
+const OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
+export const VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
+
+// TODO: this global varible is very stupid and hacky
+let ALLOWED_VALUES = VARIABLES;
 
 class Op {
     /** @param {string} value */
@@ -65,12 +68,13 @@ class Value {
         return this.value.toString();
     }
 
+    /**
+     * @returns Value
+     */
     static random() {
-        let value = choose(
-            "t", "t", "t", "t",
-            "sx", "sx",
-            "sy", "sy",
-            "mx", "my", "kx", "ky", `${Math.floor(Math.random() * 256)}`);
+        /** @type {string | number } */
+        // @ts-ignore
+        let value = choose(Math.floor(Math.random() * 256), ...ALLOWED_VALUES);
         return new Value(value);
     }
 }
@@ -103,8 +107,10 @@ export class BinOp {
             let right = Value.random();
             return new BinOp(left, op, right);
         } else {
+            /** @type { Value | BinOp } */
             // @ts-ignore
             let left = choose(Value.random(), BinOp.random(max_depth - 1));
+            /** @type { Value | BinOp } */
             // @ts-ignore
             let right = choose(Value.random(), BinOp.random(max_depth - 1));
             return new BinOp(left, op, right);
@@ -375,8 +381,10 @@ export function try_parse(bytebeat) {
 /**
  * Generates a random bytebeat.
  * @returns {string}
+ * @param {string[]} allowed_values
  */
-export function random_bytebeat() {
+export function random_bytebeat(allowed_values) {
+    ALLOWED_VALUES = allowed_values;
     let expr = BinOp.random(20);
     return expr.toString();
 }
@@ -384,31 +392,40 @@ export function random_bytebeat() {
 /**
  * Mutate the passed bytebeat.
  * @param {string} bytebeat
+ * @param {string[]} allowed_values
+ * @param {boolean} mutate_ops
+ * @param {boolean} mutate_values
  * @returns {string}
  */
-export function mutate_bytebeat(bytebeat) {
+export function mutate_bytebeat(bytebeat, allowed_values, mutate_ops, mutate_values) {
+    ALLOWED_VALUES = allowed_values;
     let match_values = /t|sx|sy|kx|ky|mx|my|[\d]+/g;
     let match_operators = /\+|\-|\*|\/|\^|\&|\||\%|\>\>|\<\</g;
 
     console.log(bytebeat);
 
-    bytebeat = bytebeat.replace(match_values, (match, ...rest) => {
-        console.log(match);
-        if (Math.random() < 0.25) {
-            console.log("h");
-            return Value.random().toString();
-        } else {
-            return match;
-        }
-    })
+    if (mutate_values) {
+        bytebeat = bytebeat.replace(match_values, (match, ...rest) => {
+            console.log(match);
+            if (Math.random() < 0.25) {
+                console.log("h");
+                return Value.random().toString();
+            } else {
+                return match;
+            }
+        });
+    }
 
-    bytebeat = bytebeat.replace(match_operators, (match, ...rest) => {
-        if (Math.random() < 0.25) {
-            return Op.random().toString();
-        } else {
-            return match;
-        }
-    })
+    if (mutate_ops) {
+        bytebeat = bytebeat.replace(match_operators, (match, ...rest) => {
+            if (Math.random() < 0.25) {
+                return Op.random().toString();
+            } else {
+                return match;
+            }
+        });
+    }
+
 
     return bytebeat;
 }
@@ -421,6 +438,6 @@ export function mutate_bytebeat(bytebeat) {
  * @returns {T}
  */
 function choose(...values) {
-    let index = Math.floor(Math.random() * values.length);
-    return values[index];
+    let value = values[Math.floor(Math.random() * values.length)];
+    return value;
 }
