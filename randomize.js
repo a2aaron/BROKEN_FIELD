@@ -212,11 +212,17 @@ export class BinOp {
             return new BinOp(left, op, right);
         } else {
             /** @type { Value | BinOp } */
-            // @ts-ignore
-            let left = choose(Value.random(), BinOp.random(max_depth - 1));
+            let left = Value.random();
+            if (Math.random() > 0.5) {
+                left = BinOp.random(max_depth - 1);
+            }
+
             /** @type { Value | BinOp } */
-            // @ts-ignore
-            let right = choose(Value.random(), BinOp.random(max_depth - 1));
+            let right = Value.random();
+            if (Math.random() > 0.5) {
+                right = BinOp.random(max_depth - 1);
+            }
+
             return new BinOp(left, op, right);
         }
     }
