@@ -70,6 +70,23 @@ class Op {
         }
     }
 
+    /** @return {"left" | "right"} */
+    lexicial_associativity() {
+        switch (this.value) {
+            case "+":
+            case "-":
+            case "*":
+            case "/":
+            case "%":
+            case "&":
+            case "^":
+            case "|":
+            case ">>":
+            case "<<": return "left";
+            default: throw new Error(`Unknown lexical associativity for ${this.value}"`);
+        }
+    }
+
     is_mathematically_associative() {
         switch (this.value) {
             case "+":
@@ -82,7 +99,7 @@ class Op {
             case "-":
             case ">>":
             case "<<": return false;
-            default: throw new Error(`Unknown associativity for ${this.value}"`);
+            default: throw new Error(`Unknown mathematical associativity for ${this.value}"`);
         }
     }
 }
@@ -128,25 +145,23 @@ export class BinOp {
     /** @returns {string} */
     toString() {
         let left = `${this.left.toString()}`;
-        if (needs_parenthesis(this, this.left)) {
+        if (needs_parenthesis(this, this.left, "left")) {
             left = `(${left})`;
         }
 
         let right = `${this.right.toString()}`;
-        if (needs_parenthesis(this, this.right)) {
+        if (needs_parenthesis(this, this.right, "right")) {
             right = `(${right})`;
         }
 
         return `${left} ${this.op.toString()} ${right}`;
 
         /**
-         * 
-         * @param {BinOp} parent 
-         * @param {BinOp | Value} child 
+         * @param {BinOp} parent
+         * @param {BinOp | Value} child
+         * @param {"left" | right} which_child
          */
-        function needs_parenthesis(parent, child) {
-            return true;
-
+        function needs_parenthesis(parent, child, which_child) {
             if (child instanceof Value) {
                 return false;
             }
@@ -156,9 +171,22 @@ export class BinOp {
             if (parent.op.precedence() < child.op.precedence()) {
                 return true;
             } else if (parent.op.precedence() == child.op.precedence()) {
-                // If the parent and child bind equally, then we need to check that they are the 
-                // same operator and that they are both mathematically associative and that they
-                // are the same operator. If both conditions are satisfied then we do not need parenthesis.
+                // If the parent and child bind equally, then we need to check that the unparenthesized
+                // expression would be the same as the intended expression.
+                // Most operators are [lexically] left-associative. (That means "a op1 b op2 c" is equal to "(a op1 b) op2 c")
+                // These comments will assume left-associativity, which you must reverse if the operator
+                // is actually right-associative.
+                // In order to not have the parenthesis we need that "a op1 b op2 c" would equal the intended expression.
+
+                // If the intended expression is (a op1 b) op2 c (that is to say, we are considering the parent the left child), 
+                // then we do not need the parenthesis, since the expression already parenthesizes how we intend.
+                if (which_child == parent.op.lexicial_associativity()) {
+                    return false;
+                }
+                // Otherwise, we are considering the right child, and need to check that (a op1 b) op2 c would equal a op1 (b op2 c)
+                // (since a op1 b op2 c = (a op1 b) op2 c, if we have the above condition, then we can remove the parenthesis)
+                // The equality condition holds only when the two ops are the same operator and the op is mathematically
+                // associative (that is, we need "op1 = op2" and "(a op b) op c == a op (b op c)").
                 // We need the mathamethical associativity requirement, because something like / would not work
                 // (a / b) / c != a / (b / c)
 
