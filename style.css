@@ -70,7 +70,8 @@ main {
 
 #error-msg {
     color: red;
-    word-wrap: normal;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 #share-confirm {
@@ -89,7 +90,7 @@ main {
 }
 
 #equation-history {
-    height: 400px;
+    max-height: 400px;
     overflow-y: auto;
 }
 

@@ -24,7 +24,7 @@ function loadShader(gl, type, source) {
     // See if it compiled successfully
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         let shader_name = type == gl.VERTEX_SHADER ? "vertex" : "fragement";
-        let msg = `An error occurred compiling the ${type} shader: ${gl.getShaderInfoLog(shader)}\n${source}`;
+        let msg = `An error occurred compiling the ${shader_name} shader: ${gl.getShaderInfoLog(shader)}\n\n=== Shader Source ===\n\n${source}`;
         gl.deleteShader(shader);
         throw new Error(msg);
     }
