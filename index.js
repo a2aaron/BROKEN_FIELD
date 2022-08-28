@@ -1,4 +1,4 @@
-import { mutate_bytebeat, random_bytebeat, try_parse } from "./randomize.js";
+import { BinOp, mutate_bytebeat, random_bytebeat, try_parse } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
@@ -253,7 +253,13 @@ function main() {
    })
 
    simplify_button.addEventListener("click", () => {
-      console.log(try_parse(bytebeat_textarea.value)?.toString());
+      let parsed = try_parse(bytebeat_textarea.value);
+      if (parsed instanceof BinOp) {
+         let simple = parsed.simplify();
+         console.log(simple);
+         bytebeat_textarea.value = simple.toString();
+         render_or_compile(gl, true);
+      }
    });
 
    share_button.addEventListener("click", () => {

@@ -47,7 +47,7 @@ class Value {
     }
 }
 
-class BinOp {
+export class BinOp {
     /**
      * @param {Value | BinOp} left
      * @param {Op} op
@@ -81,6 +81,30 @@ class BinOp {
             let right = choose(Value.random(), BinOp.random(max_depth - 1));
             return new BinOp(left, op, right);
         }
+    }
+
+    /** @returns {BinOp | Value} */
+    simplify() {
+        let left = this.left;
+        if (left instanceof BinOp) {
+            left = left.simplify();
+        }
+
+        let right = this.right;
+        if (right instanceof BinOp) {
+            right = right.simplify();
+        }
+
+        if (left instanceof Value && right instanceof Value) {
+            if (this.op.value == "+") {
+                if (left.value == "t" && right.value == "0") {
+                    return new Value("t");
+                }
+            }
+
+
+        }
+        return new BinOp(left, this.op, right);
     }
 }
 
