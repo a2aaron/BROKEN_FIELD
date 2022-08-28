@@ -257,8 +257,11 @@ function main() {
       if (parsed instanceof BinOp) {
          let simple = parsed.simplify();
          console.log(simple);
-         bytebeat_textarea.value = simple.toString();
-         render_or_compile(gl, true);
+         if (bytebeat_textarea.value != simple.toString()) {
+            add_bytebeat_history(params_to_string(get_ui_parameters()));
+            bytebeat_textarea.value = simple.toString();
+            render_or_compile(gl, true);
+         }
       }
    });
 

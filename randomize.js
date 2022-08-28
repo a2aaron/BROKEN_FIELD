@@ -127,36 +127,92 @@ export class BinOp {
             if (left.isNumber() && right.isNumber()) {
                 return new Value(this.op.eval(left.value, right.value));
             }
+        }
 
-            /** @type {[string, string, string, string | number][]} */
-            let rules = [
-                ["?a", "+", " 0", "?a"],
-                [" 0", "+", "?a", "?a"],
-                ["?a", "-", " 0", "?a"],
-                [" 0", "-", "?a", "?a"],
-                ["?a", "*", " 0", 0],
-                [" 0", "*", "?a", 0],
-                [" 0", "/", "?a", 0],
-            ];
-            for (let [rule_left, rule_op, rule_right, result] of rules) {
-                rule_left = rule_left.trim();
-                rule_op = rule_op.trim();
-                rule_right = rule_right.trim();
-                let left_matches = rule_left === "?a" || rule_left === left.value.toString();
-                let right_matches = rule_right === "?a" || rule_right === right.value.toString();
-                let op_matches = rule_op == this.op.value;
-                if (left_matches && op_matches && right_matches) {
-                    if (result == "?a" && rule_left == "?a") {
-                        return left;
-                    } else if (result == "?a" && rule_left == "?a") {
-                        return right;
-                    } else {
-                        return new Value(result);
-                    }
-                }
+        /** @type {[string, string, string, string | number, string?][]} */
+        let rules = [
+            // Constant Identities
+            ["?a", "+", "0", "?a", "commutative"],
+            ["?a", "-", "0", "?a"],
+            ["?a", "*", "0", 0, "commutative"],
+            ["?a", "*", "1", "?a", "commutative"],
+            ["?a", "/", "1", "?a"],
+            [" 0", "/", "?a", 0],
+            // Modulo Identities
+            ["?a", "%", "-1", 0],
+            ["?a", "%", "0", 0],
+            ["?a", "%", "1", 0],
+            // Reflexive Identities
+            ["?a", "-", "?a", 0],
+            ["?a", "/", "?a", 1],
+            ["?a", "^", "?a", 0],
+            ["?a", "%", "?a", 0],
+            ["?a", "&", "?a", "?a"],
+            ["?a", "|", "?a", "?a"],
+            // Bitwise w Zero
+            ["?a", "&", "0", 0, "commutative"],
+            ["?a", "|", "0", "?a", "commutative"],
+            ["?a", "^", "0", "?a", "commutative"],
+            // Bitshift w Zero
+            ["?a", ">>", "0", "?a"],
+            ["?a", "<<", "0", "?a"],
+            ["0", ">>", "?a", 0],
+            ["0", "<<", "?a", 0],
+        ];
+        for (let [rule_left, rule_op, rule_right, result, commutative] of rules) {
+            rule_left = rule_left.trim();
+            rule_op = rule_op.trim();
+            rule_right = rule_right.trim();
+            const is_commutative = commutative === "commutative";
+
+            let applied = try_apply_rule(rule_left, rule_op, rule_right, result, left, this.op.toString(), right);
+            if (is_commutative && applied == null) {
+                applied = try_apply_rule(rule_left, rule_op, rule_right, result, right, this.op.toString(), left);
+            }
+
+            if (applied) {
+                return applied;
             }
         }
         return new BinOp(left, this.op, right);
+
+
+        /**
+         * Check if the rule-values matches the actual values
+         * @param {string} rule_left
+         * @param {string} rule_op
+         * @param {string} rule_right
+         * @param {string | number} result
+         * @param {Value | BinOp} left
+         * @param {string} op
+         * @param {Value | BinOp} right
+         * @returns {Value | BinOp | null}
+         */
+        function try_apply_rule(rule_left, rule_op, rule_right, result, left, op, right) {
+            const op_matches = rule_op == op;
+
+            const wild_left = rule_left == "?a";
+            const wild_right = rule_right == "?a";
+
+            let values_match = false;
+            if (wild_left && wild_right) {
+                values_match = left.toString() === right.toString();
+            } else {
+                values_match = (wild_left || rule_left === left.toString()) && (wild_right || rule_right === right.toString());
+            }
+
+            if (op_matches && values_match) {
+                if (result == "?a" && rule_left == "?a") {
+                    return left;
+                } else if (result == "?a" && rule_left == "?a") {
+                    return right;
+                } else {
+                    return new Value(result);
+                }
+            }
+
+            return null;
+        }
     }
 }
 
