@@ -249,3 +249,13 @@ export function rem_euclid(n, modulus) {
     let out = n % modulus;
     return out < 0 ? out + Math.abs(modulus) : out;
 }
+
+/**
+ * @param {string} str 
+ * @returns {boolean}
+ */
+export function isNumber(str) {
+    if (typeof str != "string") return false // we only process strings!
+    // could also coerce to string: str = ""+str
+    return !isNaN(+str) && !isNaN(parseFloat(str))
+}

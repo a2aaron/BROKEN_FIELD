@@ -1,4 +1,4 @@
-import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
+import { mutate_bytebeat, random_bytebeat, try_parse } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
@@ -22,6 +22,8 @@ const canvas_size_y_input = getTypedElementById(HTMLInputElement, "canvas-size-y
 const restart_button = getTypedElementById(HTMLButtonElement, "restart-btn");
 const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn");
 const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
+const simplify_button = getTypedElementById(HTMLButtonElement, "simplify-btn");
+
 const share_button = getTypedElementById(HTMLButtonElement, "share-btn");
 const share_display = getTypedElementById(HTMLElement, "share-confirm");
 
@@ -249,6 +251,10 @@ function main() {
       bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
       render_or_compile(gl, true);
    })
+
+   simplify_button.addEventListener("click", () => {
+      console.log(try_parse(bytebeat_textarea.value)?.toString());
+   });
 
    share_button.addEventListener("click", () => {
       const params = get_ui_parameters();
