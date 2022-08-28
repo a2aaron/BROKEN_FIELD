@@ -92,6 +92,11 @@ main {
 #equation-history {
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#equation-history button {
+    white-space: pre;
 }
 
 @keyframes fadeOut {

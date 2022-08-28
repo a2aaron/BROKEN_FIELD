@@ -199,8 +199,12 @@ function add_bytebeat_history(params) {
 
 /** @param {StringParameters} params */
 function clickable_bytebeat(params) {
+   let button_text = params.bytebeat;
+   if (button_text.length > 70) {
+      button_text = button_text.substring(0, 70) + "...";
+   }
    let button = h("button", {},
-      h("code", {}, params.bytebeat)
+      h("code", {}, button_text)
    );
 
    button.onclick = () => {
