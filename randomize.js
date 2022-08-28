@@ -332,6 +332,11 @@ export class BinOp {
  * <op>       :: = + | - | * | / | % | << | >> | & | ^ | |
  * <term>     ::= "(" <expr> ")" | <value>
  * <expr>     ::= <term> (<op> <term>)*
+ * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
+ * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
+ * 
+ * Explanation of grammar: The "term" and "expr" are largely the same concept--both will parse to either
+ * a Value or BinOp. However, an expression is a sequence of terms, while a term is typically a "single expression"
  */
 class TokenStream {
     /**
@@ -388,14 +393,22 @@ class TokenStream {
         return term_stream(terms, ops);
 
         /**
+         * Turn a stream of terms into a single Value or BinOp. The terms and ops are interleaved 
+         * like so:
+         * terms: 0   1   2   3   4   5
+         * ops  :   0   1   2   3   4
          * @param {Term[]} terms
          * @param {Op[]} ops
-         * @return {Term}
+         * @return {Value | BinOp}
          */
         function term_stream(terms, ops) {
-            // terms: 0   1   2   3   4   5
-            // ops  :   0   1   2   3   4
-
+            // We scan over the term stream, looking for a highest-precendence op (numberically, this is the lowest 
+            // op.precendence() value). For the first one we find, we bind the two adjacent terms around it
+            // and create a single larger term containing the terms and op. Then we keep doing this until
+            // we've covered all the ops of that precedence. This continues down the precendence list
+            // until we have bound all the terms into just one term, producing the AST for this term-stream 
+            // TODO: this code currently only works for left-associative operators. it will need to 
+            // scan in the opposite direction (right to left) for right-associative operators.
             for (let current_precedence = 0; current_precedence <= MAX_PRECEDENCE; current_precedence += 1) {
                 if (terms.length == 1) {
                     console.assert(ops.length == 0, `Expected ops length to be zero, got ${ops}`);
@@ -462,6 +475,8 @@ export function try_parse(bytebeat) {
     }
 
     /**
+     * Tokensize the bytebeat into a sequence of tokens. A token is a Value, Op, an open paren,
+     * or a close paren.
      * @param {string} bytebeat
      * @returns {TokenStream}
      */
