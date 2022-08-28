@@ -69,6 +69,22 @@ class Op {
             default: throw new Error(`Unknown precedence for ${this.value}"`);
         }
     }
+
+    is_mathematically_associative() {
+        switch (this.value) {
+            case "+":
+            case "*":
+            case "&":
+            case "^":
+            case "|": return true;
+            case "%":
+            case "/":
+            case "-":
+            case ">>":
+            case "<<": return false;
+            default: throw new Error(`Unknown associativity for ${this.value}"`);
+        }
+    }
 }
 
 /** @template {string | number} [T=string | number] */
@@ -76,13 +92,6 @@ class Value {
     /** @param {T} value */
     constructor(value) {
         this.value = value;
-    }
-
-    /** @returns {number} */
-    op_precedence() {
-        // Values have no operators--this can be thought of as having an operator whose precedence
-        // is infinitely tight.
-        return -1;
     }
 
     /** @returns {this is Value<number>} */
@@ -119,20 +128,49 @@ export class BinOp {
     /** @returns {string} */
     toString() {
         let left = `${this.left.toString()}`;
-        if (this.op_precedence() < this.left.op_precedence()) {
+        if (needs_parenthesis(this, this.left)) {
             left = `(${left})`;
         }
 
         let right = `${this.right.toString()}`;
-        if (this.op_precedence() < this.right.op_precedence()) {
+        if (needs_parenthesis(this, this.right)) {
             right = `(${right})`;
         }
 
         return `${left} ${this.op.toString()} ${right}`;
-    }
 
-    /** @returns {number} */
-    op_precedence() { return this.op.precedence(); }
+        /**
+         * 
+         * @param {BinOp} parent 
+         * @param {BinOp | Value} child 
+         */
+        function needs_parenthesis(parent, child) {
+            return true;
+
+            if (child instanceof Value) {
+                return false;
+            }
+
+            // If the child binds more loosely than the parent, but we need the child to bind
+            // stronger, use parens
+            if (parent.op.precedence() < child.op.precedence()) {
+                return true;
+            } else if (parent.op.precedence() == child.op.precedence()) {
+                // If the parent and child bind equally, then we need to check that they are the 
+                // same operator and that they are both mathematically associative and that they
+                // are the same operator. If both conditions are satisfied then we do not need parenthesis.
+                // We need the mathamethical associativity requirement, because something like / would not work
+                // (a / b) / c != a / (b / c)
+
+                // We also need the same-operator requirement, because of the example below:
+                // For example, a * b * c  = (a * b) * c  = a * (b * c)
+                // however,     a + b * c != (a + b) * c != (a + b) * c, even if + had the same precedence as *.
+                return !(parent.op.is_mathematically_associative() && parent.op.value == child.op.value);
+            } else {
+                return false;
+            }
+        }
+    }
 
     /**
      * @param {number} max_depth
