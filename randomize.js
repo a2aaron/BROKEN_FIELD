@@ -52,7 +52,7 @@ class Op {
 
     /**
      * Returns the precedence of the operator.
-     * A lower value means higher precendence. 
+     * A lower value means higher precedence. 
      * @returns {number} */
     precedence() {
         switch (this.value) {
@@ -78,9 +78,14 @@ class Value {
         this.value = value;
     }
 
-    /**
-     * @returns {this is Value<number>}
-     */
+    /** @returns {number} */
+    op_precedence() {
+        // Values have no operators--this can be thought of as having an operator whose precedence
+        // is infinitely tight.
+        return -1;
+    }
+
+    /** @returns {this is Value<number>} */
     isNumber() {
         return typeof this.value == "number";
     }
@@ -90,9 +95,7 @@ class Value {
         return this.value.toString();
     }
 
-    /**
-     * @returns Value
-     */
+    /** @returns Value */
     static random() {
         /** @type {string | number } */
         // @ts-ignore
@@ -115,8 +118,21 @@ export class BinOp {
 
     /** @returns {string} */
     toString() {
-        return `(${this.left.toString()} ${this.op.toString()} ${this.right.toString()})`;
+        let left = `${this.left.toString()}`;
+        if (this.op_precedence() < this.left.op_precedence()) {
+            left = `(${left})`;
+        }
+
+        let right = `${this.right.toString()}`;
+        if (this.op_precedence() < this.right.op_precedence()) {
+            right = `(${right})`;
+        }
+
+        return `${left} ${this.op.toString()} ${right}`;
     }
+
+    /** @returns {number} */
+    op_precedence() { return this.op.precedence(); }
 
     /**
      * @param {number} max_depth
