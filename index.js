@@ -281,8 +281,14 @@ function main() {
 
    share_button.addEventListener("click", () => {
       const params = get_ui_parameters();
+
+      let bytebeat = params.bytebeat;
+      if (getTypedElementById(HTMLInputElement, "share-link-whitespace").checked) {
+         bytebeat = bytebeat.replaceAll(" ", "");
+      }
+
       let stringy_params = {
-         bytebeat: btoa(params.bytebeat),
+         bytebeat: btoa(bytebeat),
       };
 
       add_if_not_default("color", params.color.toHexString(), "00ff00");
@@ -291,7 +297,7 @@ function main() {
       add_if_not_default("width", params.width, "1024");
       add_if_not_default("height", params.height, "1024");
       add_if_not_default("wrap_value", params.wrap_value, "256");
-      add_if_not_default("time_scale", params.time_scale, "0.5");
+      add_if_not_default("time_scale", params.time_scale.toFixed(2), "0.5");
 
       // in case im on localhost
       let href = window.location.href.includes("localhost") ? "https://a2aaron.github.io/BROKEN_FIELD/" : window.location.href;
