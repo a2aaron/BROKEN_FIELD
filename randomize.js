@@ -3,6 +3,8 @@ import { isNumber } from "./util.js";
 const OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
 export const VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 
+const MAX_PRECEDENCE = 12;
+
 // TODO: this global varible is very stupid and hacky
 let ALLOWED_VALUES = VARIABLES;
 
@@ -45,6 +47,26 @@ class Op {
             case ">>": return a >> b;
             case "<<": return a << b;
             default: throw new Error(`Unable to eval "${a} ${this.value} ${b}"`);
+        }
+    }
+
+    /**
+     * Returns the precedence of the operator.
+     * A lower value means higher precendence. 
+     * @returns {number} */
+    precedence() {
+        switch (this.value) {
+            case "*":
+            case "/":
+            case "%": return 4;
+            case "+":
+            case "-": return 5;
+            case ">>":
+            case "<<": return 6;
+            case "&": return 9;
+            case "^": return 10;
+            case "|": return 11;
+            default: throw new Error(`Unknown precedence for ${this.value}"`);
         }
     }
 }
@@ -227,7 +249,7 @@ export class BinOp {
  * <value>    ::= <number> | <variable>
  * <op>       :: = + | - | * | / | % | << | >> | & | ^ | |
  * <term>     ::= "(" <expr> ")" | <value>
- * <expr>     ::= <term> (<op> <term>)?
+ * <expr>     ::= <term> (<op> <term>)*
  */
 class TokenStream {
     /**
@@ -240,7 +262,9 @@ class TokenStream {
         this.index = index;
     }
 
-    /** @returns {Value | BinOp} */
+    /** 
+     * @typedef {Value | BinOp} Term
+     * @returns {Term} */
     parse_term() {
         const next_token = this.peek();
         if (next_token == "(") {
@@ -258,15 +282,65 @@ class TokenStream {
 
     /** @returns {Value | BinOp} */
     parse_expr() {
-        const l_term = this.parse_term();
-        const op = this.peek();
-        if (!(op instanceof Op)) {
-            return l_term;
-        }
-        this.consume(op);
-        const r_term = this.parse_term();
-        return new BinOp(l_term, op, r_term);
+        let terms = [];
+        let ops = [];
 
+        terms.push(this.parse_term());
+        while (true) {
+            const op = this.peek();
+            if (!(op instanceof Op)) {
+                break;
+            }
+            this.consume(op);
+            const term = this.parse_term();
+
+            terms.push(term);
+            ops.push(op);
+        }
+
+        console.assert(terms.length == ops.length + 1);
+
+        if (terms.length == 1 && ops.length == 0) {
+            return terms[0];
+        }
+        return term_stream(terms, ops);
+
+        /**
+         * @param {Term[]} terms
+         * @param {Op[]} ops
+         * @return {Term}
+         */
+        function term_stream(terms, ops) {
+            // terms: 0   1   2   3   4   5
+            // ops  :   0   1   2   3   4
+
+            for (let current_precedence = 0; current_precedence <= MAX_PRECEDENCE; current_precedence += 1) {
+                if (terms.length == 1) {
+                    console.assert(ops.length == 0, `Expected ops length to be zero, got ${ops}`);
+                    return terms[0];
+                }
+                let i = 0;
+                while (i < ops.length) {
+                    if (ops[i].precedence() == current_precedence) {
+                        let left_term = terms[i];
+                        let right_term = terms[i + 1];
+                        let op = ops[i];
+                        let bound_term = new BinOp(left_term, op, right_term);
+
+                        // remove the op from the ops array
+                        ops.splice(i, 1);
+                        // replace the left and right terms with just the bound term
+                        terms.splice(i, 2, bound_term);
+                        // Deliberately stay on the current term/op position--the next op in the 
+                        // list has just been shifted into the current position.
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+
+            throw new Error(`Did not parse all of term stream: ${terms}, ${ops}`);
+        }
     }
 
     /** @return {Token | null} */

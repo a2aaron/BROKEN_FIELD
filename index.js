@@ -271,7 +271,6 @@ function main() {
       let parsed = try_parse(bytebeat_textarea.value);
       if (parsed instanceof BinOp) {
          let simple = parsed.simplify();
-         console.log(simple);
          if (bytebeat_textarea.value != simple.toString()) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
             bytebeat_textarea.value = simple.toString();
