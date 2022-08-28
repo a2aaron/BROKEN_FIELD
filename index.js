@@ -293,7 +293,9 @@ function main() {
       add_if_not_default("wrap_value", params.wrap_value, "256");
       add_if_not_default("time_scale", params.time_scale, "0.5");
 
-      const url = new URL(window.location.href);
+      // in case im on localhost
+      let href = window.location.href.includes("localhost") ? "https://a2aaron.github.io/BROKEN_FIELD/" : window.location.href;
+      const url = new URL(href);
       url.search = new URLSearchParams(stringy_params).toString();
       navigator.clipboard.writeText(url.toString());
       share_display.innerText = "Copied!";
