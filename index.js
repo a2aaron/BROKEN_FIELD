@@ -1,4 +1,5 @@
-import { BinOp, mutate_bytebeat, random_bytebeat, try_parse, VARIABLES } from "./randomize.js";
+import { BinOp, try_parse } from "./parse.js";
+import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
