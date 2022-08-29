@@ -70,56 +70,62 @@
           <ul>
             <li>
               <ui-element>
-                <label for="randomize-enable-t">Generate <code>t&nbsp;</code></label>
+                <label for="randomize-enable-t" title="If checked, t will be generated in equations.">Generate <code>t&nbsp;</code></label>
                 <input type="checkbox" id="randomize-enable-t" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-sx">Generate <code>sx</code></label>
+                <label for="randomize-enable-sx" title="If checked, sx will be generated in equations.">Generate <code>sx</code></label>
                 <input type="checkbox" id="randomize-enable-sx" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-sy">Generate <code>sy</code></label>
+                <label for="randomize-enable-sy" title="If checked, sy will be generated in equations.">Generate <code>sy</code></label>
                 <input type="checkbox" id="randomize-enable-sy" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-mx">Generate <code>mx</code></label>
+                <label for="randomize-enable-mx" title="If checked, mx will be generated in equations.">Generate <code>mx</code></label>
                 <input type="checkbox" id="randomize-enable-mx" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-my">Generate <code>my</code></label>
+                <label for="randomize-enable-my" title="If checked, my will be generated in equations.">Generate <code>my</code></label>
                 <input type="checkbox" id="randomize-enable-my" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-kx">Generate <code>kx</code></label>
+                <label for="randomize-enable-kx" title="If checked, kx will be generated in equations.">Generate <code>kx</code></label>
                 <input type="checkbox" id="randomize-enable-kx" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="randomize-enable-ky">Generate <code>ky</code></label>
+                <label for="randomize-enable-ky" title="If checked, ky will be generated in equations.">Generate <code>ky</code></label>
                 <input type="checkbox" id="randomize-enable-ky" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="mutate-enable-ops">Mutate ops</label>
+                <label for="mutate-enable-ops" title="If checked, Mutate will alter operators in your equation.">Mutate operators</label>
                 <input type="checkbox" id="mutate-enable-ops" checked="true">
               </ui-element>
             </li>
             <li>
               <ui-element>
-                <label for="mutate-enable-values">Mutate values</label>
+                <label for="mutate-enable-values" title="If checked, Mutate will alter variables and constants in your equation.">Mutate values</label>
                 <input type="checkbox" id="mutate-enable-values" checked="true">
+              </ui-element>
+            </li>
+            <li>
+              <ui-element>
+                <label for="randomize-avoid-ub" title="If checked, Randomize will try to avoid generating equations which would invoke undefined behavior.">Generate Undefined Behavior</label>
+                <input type="checkbox" id="randomize-avoid-ub">
               </ui-element>
             </li>
           </ul>
@@ -127,7 +133,7 @@
           <ul>
             <li>
               <ui-element>
-                <label for="share-link-whitespace">Strip Whitespace</label>
+                <label for="share-link-whitespace" title="If checked, Copy Sharable Link will strip the whitespace in your equation.">Strip Whitespace</label>
                 <input type="checkbox" id="share-link-whitespace" checked="true">
               </ui-element>
             </li>

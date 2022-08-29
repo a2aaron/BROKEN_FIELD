@@ -1,12 +1,9 @@
-import { isNumber } from "./util.js";
+import { getTypedElementById, isNumber } from "./util.js";
 
 const OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
 export const VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 
 const MAX_PRECEDENCE = 12;
-
-// TODO: this global varible is very stupid and hacky
-let ALLOWED_VALUES = VARIABLES;
 
 class Op {
     /** @param {string} value */
@@ -125,9 +122,12 @@ class Value {
     static random() {
         /** @type {string | number } */
         // @ts-ignore
-        let value = choose(Math.floor(Math.random() * 256), ...ALLOWED_VALUES);
+        let value = choose(Math.floor(Math.random() * 256), ...allowed_generator_values());
         return new Value(value);
     }
+
+    /** @returns {Value} */
+    simplify() { return this; }
 }
 
 export class BinOp {
@@ -205,39 +205,63 @@ export class BinOp {
      * @returns {BinOp}
      */
     static random(max_depth) {
-        let op = Op.random();
-        if (max_depth == 0) {
-            let left = Value.random();
-            let right = Value.random();
-            return new BinOp(left, op, right);
-        } else {
-            /** @type { Value | BinOp } */
-            let left = Value.random();
-            if (Math.random() > 0.5) {
-                left = BinOp.random(max_depth - 1);
-            }
+        for (let i = 0; i < 5; i++) {
+            let bin_op = generate_binop(max_depth);
 
-            /** @type { Value | BinOp } */
-            let right = Value.random();
-            if (Math.random() > 0.5) {
-                right = BinOp.random(max_depth - 1);
+            if (avoid_ub() && has_ub(bin_op)) {
+                console.log("UB Detected: ", bin_op, bin_op.toString(), "\n", bin_op.left.simplify().toString(), "\n", bin_op.right.simplify().toString());
+                continue;
+            } else {
+                return bin_op;
             }
+        }
+        // Give up after 5 failed attempts to avoid UB.
+        console.log("Couldn't prevent UB!");
+        throw new Error("kill");
+        return generate_binop(max_depth);
 
-            return new BinOp(left, op, right);
+        /** @param {number} max_depth */
+        function generate_binop(max_depth) {
+            let op = Op.random();
+            if (max_depth == 0) {
+                let left = Value.random();
+                let right = Value.random();
+                return new BinOp(left, op, right);
+            } else {
+                /** @type { Value | BinOp } */
+                let left = Value.random();
+                if (Math.random() > 0.5) {
+                    left = BinOp.random(max_depth - 1);
+                }
+
+                /** @type { Value | BinOp } */
+                let right = Value.random();
+                if (Math.random() > 0.5) {
+                    right = BinOp.random(max_depth - 1);
+                }
+
+                return new BinOp(left, op, right);
+            }
+        }
+
+        /**
+         * Returns true if the bin_op definitely has undefined behavior.
+         * @param {BinOp} bin_op 
+         * @returns {boolean}
+         */
+        function has_ub(bin_op) {
+            let right_val = expr_extract_value(bin_op.right);
+
+            let divide_by_zero = bin_op.op.value == "/" && right_val === 0;
+            let overwide_shift = bin_op.op.value == "<<" && (typeof right_val == "number" && right_val > 32);
+            return divide_by_zero || overwide_shift;
         }
     }
 
     /** @returns {BinOp | Value} */
     simplify() {
-        let left = this.left;
-        if (left instanceof BinOp) {
-            left = left.simplify();
-        }
-
-        let right = this.right;
-        if (right instanceof BinOp) {
-            right = right.simplify();
-        }
+        let left = this.left.simplify();
+        let right = this.right.simplify();
 
         if (left instanceof Value && right instanceof Value) {
             if (left.isNumber() && right.isNumber()) {
@@ -558,10 +582,8 @@ export function try_parse(bytebeat) {
 /**
  * Generates a random bytebeat.
  * @returns {string}
- * @param {string[]} allowed_values
  */
-export function random_bytebeat(allowed_values) {
-    ALLOWED_VALUES = allowed_values;
+export function random_bytebeat() {
     let expr = BinOp.random(20);
     return expr.toString();
 }
@@ -569,13 +591,12 @@ export function random_bytebeat(allowed_values) {
 /**
  * Mutate the passed bytebeat.
  * @param {string} bytebeat
- * @param {string[]} allowed_values
- * @param {boolean} mutate_ops
- * @param {boolean} mutate_values
  * @returns {string}
  */
-export function mutate_bytebeat(bytebeat, allowed_values, mutate_ops, mutate_values) {
-    ALLOWED_VALUES = allowed_values;
+export function mutate_bytebeat(bytebeat) {
+    let mutate_ops = getTypedElementById(HTMLInputElement, "mutate-enable-ops").checked;
+    let mutate_values = getTypedElementById(HTMLInputElement, "mutate-enable-values").checked;
+
     let match_values = /t|sx|sy|kx|ky|mx|my|[\d]+/g;
     let match_operators = /\+|\-|\*|\/|\^|\&|\||\%|\>\>|\<\</g;
 
@@ -607,7 +628,35 @@ export function mutate_bytebeat(bytebeat, allowed_values, mutate_ops, mutate_val
     return bytebeat;
 }
 
+/**
+ * @param {BinOp | Value} expr
+ * @returns {string | number | null}
+ */
+function expr_extract_value(expr) {
+    let simple_expr = expr.simplify();
+    if (simple_expr instanceof Value) {
+        return simple_expr.value;
+    } else {
+        return null;
+    }
+}
 
+/** @returns {boolean} */
+function avoid_ub() {
+    return !getTypedElementById(HTMLInputElement, "randomize-avoid-ub").checked;
+}
+
+/** @returns {string[]} */
+function allowed_generator_values() {
+    let values = [];
+    for (const variable of VARIABLES) {
+        let checkbox = getTypedElementById(HTMLInputElement, `randomize-enable-${variable}`);
+        if (checkbox.checked) {
+            values.push(variable);
+        }
+    }
+    return values;
+}
 
 /**
  * @template T

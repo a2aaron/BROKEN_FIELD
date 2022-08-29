@@ -214,20 +214,6 @@ function clickable_bytebeat(params) {
    return button
 }
 
-/**
- * @returns {string[]}
- */
-function allowed_generator_values() {
-   let values = [];
-   for (const variable of VARIABLES) {
-      let checkbox = getTypedElementById(HTMLInputElement, `randomize-enable-${variable}`);
-      if (checkbox.checked) {
-         values.push(variable);
-      }
-   }
-   return values;
-}
-
 function main() {
    bytebeat_textarea.addEventListener("input", () => render_or_compile(gl, true));
    wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
@@ -258,16 +244,14 @@ function main() {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       randomize_color();
-      bytebeat_textarea.value = random_bytebeat(allowed_generator_values());
+      bytebeat_textarea.value = random_bytebeat();
       render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
-      let mutate_ops = getTypedElementById(HTMLInputElement, "mutate-enable-ops").checked;
-      let mutate_values = getTypedElementById(HTMLInputElement, "mutate-enable-values").checked;
-      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value, allowed_generator_values(), mutate_ops, mutate_values);
+      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
       render_or_compile(gl, true);
    })
 
