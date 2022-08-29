@@ -431,7 +431,13 @@ export function has_ub(bin_op) {
  * @returns {Value | BinOp | null}
  */
 export function try_parse(bytebeat) {
-    const tokens = tokenize(bytebeat);
+    let tokens;
+    try {
+        tokens = tokenize(bytebeat);
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
 
     try {
         let expr = tokens.parse_expr();
@@ -492,8 +498,7 @@ export function try_parse(bytebeat) {
                 continue;
             }
 
-            console.log("Unrecognized token: ", this_char);
-            i += 1;
+            throw new Error(`Unrecognized token: ${this_char}`);
         }
         return new TokenStream(tokens, 0);
     }
