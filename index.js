@@ -1,7 +1,7 @@
 import { BinOp, try_parse } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
-import { compileBytebeat, renderBytebeat } from "./shader.js";
+import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 // HTML elements we wish to attach event handlers to.
@@ -153,7 +153,7 @@ function params_to_string(params) {
  * @param {StringParameters} params 
  */
 function set_ui(params) {
-   bytebeat_textarea.value = params.bytebeat;
+   set_bytebeat(params.bytebeat);
    wrap_value_input.value = params.wrap_value;
    time_scale_input.value = params.time_scale;
    color_input.value = params.color;
@@ -161,6 +161,18 @@ function set_ui(params) {
    canvas_size_y_input.value = params.height;
    time_start_input.value = params.time_start;
    time_end_input.value = params.time_end;
+}
+
+/**
+ * Sets the current bytebeat.
+ * @param {string} bytebeat
+ */
+function set_bytebeat(bytebeat) {
+   bytebeat_textarea.value = bytebeat;
+   const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
+   const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
+
+   shader_source_textarea.value = get_fragment_shader_source(bytebeat);
 }
 
 function update_coord_display() {
@@ -216,7 +228,10 @@ function clickable_bytebeat(params) {
 }
 
 function main() {
-   bytebeat_textarea.addEventListener("input", () => render_or_compile(gl, true));
+   bytebeat_textarea.addEventListener("input", () => {
+      set_bytebeat(bytebeat_textarea.value);
+      render_or_compile(gl, true)
+   });
    wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
    color_input.addEventListener("input", () => render_or_compile(gl, false));
    time_scale_input.addEventListener("input", () => {
@@ -245,14 +260,14 @@ function main() {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       randomize_color();
-      bytebeat_textarea.value = random_bytebeat();
+      set_bytebeat(random_bytebeat());
       render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
-      bytebeat_textarea.value = mutate_bytebeat(bytebeat_textarea.value);
+      set_bytebeat(mutate_bytebeat(bytebeat_textarea.value));
       render_or_compile(gl, true);
    })
 
@@ -416,6 +431,9 @@ function main() {
    render_or_compile(gl, true);
    animation_loop();
    update_coord_display();
+
+   getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}");
+   getTypedElementById(HTMLPreElement, "vertex-shader-source").innerText = get_vertex_shader_source();
 
    function animation_loop() {
       render_or_compile(gl, false);

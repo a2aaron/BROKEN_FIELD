@@ -1,6 +1,46 @@
 import { unwrap } from "./util.js";
 
 /**
+ * Get the fragment shader source code.
+ * @param {string} bytebeat
+ */
+export function get_fragment_shader_source(bytebeat) {
+    return `#version 300 es
+precision mediump float;
+
+uniform float wrap_value;
+uniform int t, mx, my, kx, ky;
+uniform float t_f, mx_f, my_f, kx_f, ky_f;
+
+uniform vec3 color;
+out vec4 fragColor;
+
+void main() {
+    float sx_f = gl_FragCoord.x - 0.5;
+    float sy_f = gl_FragCoord.y - 0.5;
+    int sx = int(sx_f);
+    int sy = int(sy_f);
+    int value = ${bytebeat};
+    value = value % int(wrap_value);
+    value = value < 0 ? value + int(wrap_value) : value;
+    float value_out = float(value) / wrap_value;
+    fragColor = vec4(value_out * color, 1.0);
+}`;
+}
+
+/**
+ * Get the vertex shader source code.
+ */
+export function get_vertex_shader_source() {
+    return `#version 300 es
+in vec4 aVertexPosition;
+
+void main() {
+    gl_Position = aVertexPosition;
+}`;
+}
+
+/**
  * Load the given shader into the given context.
  * @param {WebGL2RenderingContext} gl the context to load the shader into
  * @param {number} type The type of shader being
@@ -192,34 +232,9 @@ function render(gl, positionAttributeIndex) {
  * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
  */
 export function compileBytebeat(gl, bytebeat) {
-    const vsSource = `#version 300 es
-    in vec4 aVertexPosition;
- 
-    void main() {
-       gl_Position = aVertexPosition;
-    }`;
+    const vsSource = get_vertex_shader_source();
 
-    const fsSource = `#version 300 es
-    precision mediump float;
- 
-    uniform float wrap_value;
-    uniform int t, mx, my, kx, ky;
-    uniform float t_f, mx_f, my_f, kx_f, ky_f;
- 
-    uniform vec3 color;
-    out vec4 fragColor;
- 
-    void main() {
-      float sx_f = gl_FragCoord.x - 0.5;
-      float sy_f = gl_FragCoord.y - 0.5;
-      int sx = int(sx_f);
-      int sy = int(sy_f);
-      int value = ${bytebeat};
-      value = value % int(wrap_value);
-      value = value < 0 ? value + int(wrap_value) : value;
-      float value_out = float(value) / wrap_value;
-      fragColor = vec4(value_out * color, 1.0);
-    }`;
+    const fsSource = get_fragment_shader_source(bytebeat);
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
 
