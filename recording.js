@@ -3,9 +3,7 @@ import { getTypedElementById, unwrap } from "./util.js";
 
 
 export class Recorder {
-    /** @type {"webm" | "gif" | null} */
-    #current_recording;
-    /** @type {import("./gif.js") | null} */
+    /** @type {GIFRenderer | null} */
     #gif_recorder;
 
     /**
@@ -14,20 +12,22 @@ export class Recorder {
     constructor(canvas) {
         /** @type {BlobPart[]} */
         this.video_chunks = [];
-        this.recording_indicator = getTypedElementById(HTMLElement, "recording-indicator");
-        this.video_display = getTypedElementById(HTMLVideoElement, "video-display");
-        this.image_display = getTypedElementById(HTMLImageElement, "image-display");
+
+        const indicator = getTypedElementById(HTMLElement, "recording-indicator");
+        this.indicator = new RecordingIndicator(indicator);
+
+        const video = getTypedElementById(HTMLVideoElement, "video-display");
+        const image = getTypedElementById(HTMLImageElement, "image-display");
+        this.media_display = new MediaDisplay(image, video);
 
         this.canvas = canvas;
 
-        this.recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.video_display);
-
-        this.#current_recording = null;
+        this.recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.media_display);
         this.#gif_recorder = null;
     }
 
     is_recording() {
-        return this.#current_recording == "gif" || this.#current_recording == "webm";
+        return this.#gif_recorder?.is_rendering || this.recorder.is_recording;
     }
 
     start() {
@@ -35,17 +35,14 @@ export class Recorder {
 
         this.video_chunks = [];
         this.recorder.start();
-        this.#show_recording_indicator("Recording WebM... (Press R to stop recording)");
-        this.#current_recording = "webm";
+        this.indicator.show("Recording WebM... (Press R to stop recording)");
     }
 
     stop() {
-        if (this.#current_recording != "webm") { return; }
+        if (!this.recorder.is_recording) { return; }
 
-        this.#hide_recording_indicator();
+        this.indicator.hide();
         this.recorder.stop();
-        this.show_video_element("video");
-        this.#current_recording = null;
     }
 
     /**
@@ -59,89 +56,155 @@ export class Recorder {
      * @param {number} delay
      */
     async manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
+        // Abort the current recording in progress.
         if (this.is_recording()) {
             this.#gif_recorder?.abort();
-            return;
         }
 
-        this.#current_recording = "gif";
+        this.#gif_recorder = new GIFRenderer(bytebeat, width, height, this.indicator, this.media_display);
+        this.#gif_recorder.render(start_t, end_t, params, delay);
+    }
+}
 
+class RecordingIndicator {
+    /** 
+     * Construct a new RecordingIndicator
+     * @param {HTMLElement} element 
+     */
+    constructor(element) {
+        this.indicator = element;
+    }
+
+    /**
+     * Show a message on the indicator.
+     * @param {string} msg
+     */
+    show(msg) {
+        this.indicator.classList.remove("hidden");
+        this.indicator.innerText = msg;
+    }
+
+    /**
+     * Hide the indicator.
+     */
+    hide() {
+        this.indicator.classList.add("hidden");
+        this.indicator.innerText = "";
+    }
+}
+
+class MediaDisplay {
+    /**
+     * Wrapper for the img/video display elements.
+     * @param {HTMLImageElement} img_element The image element to show images in
+     * @param {HTMLVideoElement} video_element The video element to show videos in
+     */
+    constructor(img_element, video_element) {
+        this.img = img_element;
+        this.video = video_element;
+    }
+
+    /**
+     * @param {Blob | MediaSource} blob
+     */
+    show_video(blob) {
+        this.video.src = URL.createObjectURL(blob);
+        this.video.classList.remove("hidden");
+        this.img.classList.add("hidden");
+    }
+
+    /**
+     * @param {Blob | MediaSource} blob
+     */
+    show_image(blob) {
+        this.img.src = URL.createObjectURL(blob);
+        this.img.classList.remove("hidden");
+        this.video.classList.add("hidden");
+    }
+}
+
+class GIFRenderer {
+    /**
+     * @param {string} bytebeat
+     * @param {number} width
+     * @param {number} height
+     * @param {RecordingIndicator} indicator
+     * @param {MediaDisplay} display
+     */
+    constructor(bytebeat, width, height, indicator, display) {
         // Set up the canvas
-        let canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        let gl = unwrap(canvas.getContext("webgl2"));
-        let programInfo = compileBytebeat(gl, bytebeat);
+        this.canvas = document.createElement("canvas");
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.gl = unwrap(this.canvas.getContext("webgl2"));
+        this.programInfo = compileBytebeat(this.gl, bytebeat);
+
+        this.indicator = indicator;
+        this.is_rendering = false;
 
         // Set up the gif.js GIF object
         // @ts-ignore (Can't import the GIF object for some reason)
-        this.#gif_recorder = new GIF(gif_settings(width, height));
+        this.gif = new GIF(gif_settings(width, height));
 
-        this.#gif_recorder.on('finished', (/** @type {Blob} */ blob) => {
-            this.#hide_recording_indicator();
-
-            this.image_display.src = URL.createObjectURL(blob);
-            this.show_video_element("image");
-            this.#current_recording = null;
+        this.gif.on('finished', (/** @type {Blob} */ blob) => {
+            this.indicator.hide();
+            display.show_image(blob);
+            this.is_rendering = false;
         })
 
-        this.#gif_recorder.on('abort', () => {
-            this.#hide_recording_indicator();
-            this.#current_recording = null;
+        this.gif.on('abort', () => {
+            this.indicator.hide();
+            this.is_rendering = false;
         })
 
-        this.#gif_recorder.on('progress', (/** @type { number } */ progress) => {
-            this.#show_recording_indicator(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
+        this.gif.on('progress', (/** @type { number } */ progress) => {
+            indicator.show(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
         })
+    }
+
+    /**
+     * @param {number} start_t
+     * @param {number} end_t
+     * @param {import("./shader.js").BytebeatParams} params
+     * @param {number} delay
+     */
+    async render(start_t, end_t, params, delay) {
+        this.is_rendering = true;
 
         // Record all frames
         for (let i = start_t; i < end_t; i++) {
+            if (this.aborted) {
+                return;
+            }
             params.time = i;
-            renderBytebeat(gl, programInfo, params);
-            this.#gif_recorder.addFrame(canvas, { copy: true, delay });
-            this.#show_recording_indicator(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
+            renderBytebeat(this.gl, this.programInfo, params);
+            this.gif.addFrame(this.canvas, { copy: true, delay });
+            this.indicator.show(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
             await yieldToEventLoop();
         }
 
-        this.#gif_recorder.render();
+        this.gif.render();
     }
 
-    /**
-     * @param {"video" | "image"} format
-     */
-    show_video_element(format) {
-        if (format == "video") {
-            this.video_display.classList.remove("hidden");
-            this.image_display.classList.add("hidden");
-        } else if (format == "image") {
-            this.video_display.classList.add("hidden");
-            this.image_display.classList.remove("hidden");
+    abort() {
+        if (this.is_rendering) {
+            this.gif.abort();
+            this.aborted = true;
         }
-    }
-
-    /**
-     * @param {string} msg
-     */
-    #show_recording_indicator(msg) {
-        this.recording_indicator.classList.remove("hidden");
-        this.recording_indicator.innerText = msg;
-    }
-
-    #hide_recording_indicator() {
-        this.recording_indicator.classList.add("hidden");
     }
 }
 
 class MediaRecorderWrapper {
     /**
      * @param {MediaStream} media_stream
-     * @param {HTMLVideoElement} video_element
+     * @param {MediaDisplay} display
      */
-    constructor(media_stream, video_element) {
+    constructor(media_stream, display) {
         this.media_recorder = new MediaRecorder(media_stream, { videoBitsPerSecond: 1028 * 1000000 });
         /** @type {BlobPart[]} */
         this.video_chunks = [];
-        this.video_element = video_element;
+        this.display = display;
+        this.is_recording = false;
 
         this.media_recorder.onstart = () => {
             this.video_chunks = [];
@@ -153,16 +216,19 @@ class MediaRecorderWrapper {
 
         this.media_recorder.onstop = () => {
             let blob = new Blob(this.video_chunks, { type: "video/webm" });
-            this.video_element.src = URL.createObjectURL(blob);
+            this.display.show_video(blob);
         }
+
     }
 
     start() {
         this.media_recorder.start();
+        this.is_recording = true;
     }
 
     stop() {
         this.media_recorder.stop();
+        this.is_recording = false;
     }
 }
 

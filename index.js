@@ -233,9 +233,11 @@ function take_screenshot(gl, canvas) {
    // https://stackoverflow.com/questions/32556939/saving-canvas-to-image-via-canvas-todataurl-results-in-black-rectangle?noredirect=1&lq=1
    // https://webglfundamentals.org/webgl/lessons/webgl-tips.html
    render(gl);
-   const image_data = canvas.toDataURL('png');
-   screenshot_display.src = image_data;
-   recorder.show_video_element("image");
+   canvas.toBlob((blob) => {
+      if (blob) {
+         recorder.media_display.show_image(blob);
+      }
+   }, 'png');
 }
 
 /**
