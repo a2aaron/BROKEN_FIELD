@@ -5,6 +5,13 @@ import { unwrap } from "./util.js";
  * @param {string} bytebeat
  */
 export function get_fragment_shader_source(bytebeat) {
+    let [core, additional_variables] = parse_program(bytebeat);
+
+    let variable_text = "";
+    for (const var_text of additional_variables) {
+        variable_text += `    ${var_text};\n`;
+    }
+
     return `#version 300 es
 precision mediump float;
 
@@ -20,7 +27,8 @@ void main() {
     float sy_f = gl_FragCoord.y - 0.5;
     int sx = int(sx_f);
     int sy = int(sy_f);
-    int value = ${bytebeat};
+${variable_text}
+    int value = ${core};
     value = value % int(wrap_value);
     value = value < 0 ? value + int(wrap_value) : value;
     float value_out = float(value) / wrap_value;
@@ -38,6 +46,25 @@ in vec4 aVertexPosition;
 void main() {
     gl_Position = aVertexPosition;
 }`;
+}
+
+/**
+ * Turn a bytebeat containing variables into a bytebeat core and its additional variables.
+ * @param {string} bytebeat 
+ * @returns {[string, string[]]}
+ */
+function parse_program(bytebeat) {
+    let split = bytebeat.split(";");
+    console.assert(split.length > 0);
+
+    const core = split[split.length - 1].trim();
+    if (split.length == 1) {
+        return [core, []];
+    }
+
+    const additional_variables = split.slice(0, split.length - 1).map((x) => x.trim());
+
+    return [core, additional_variables];
 }
 
 /**
@@ -234,6 +261,7 @@ function render(gl, positionAttributeIndex) {
 export function compileBytebeat(gl, bytebeat) {
     const vsSource = get_vertex_shader_source();
 
+    console.log(parse_program(bytebeat));
     const fsSource = get_fragment_shader_source(bytebeat);
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
