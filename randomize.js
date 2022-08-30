@@ -1,4 +1,4 @@
-import { BinOp, has_ub, Op, Value, VARIABLES } from "./parse.js";
+import { BinOp, Op, Value, VARIABLES } from "./parse.js";
 import { getTypedElementById, isNumber } from "./util.js";
 
 /** @returns {Op} */
@@ -28,7 +28,7 @@ function random_binop(max_depth) {
     for (let i = 0; i < 5; i++) {
         let bin_op = generate_binop(max_depth);
 
-        if (avoid_ub() && has_ub(bin_op)) {
+        if (avoid_ub() && bin_op.has_ub()) {
             continue;
         } else {
             return bin_op;
@@ -115,7 +115,7 @@ export function mutate_bytebeat(bytebeat) {
 
 /** @returns {boolean} */
 function avoid_ub() {
-    return !getTypedElementById(HTMLInputElement, "randomize-avoid-ub").checked;
+    return getTypedElementById(HTMLInputElement, "randomize-avoid-ub").checked;
 }
 
 /** @returns {string[]} */

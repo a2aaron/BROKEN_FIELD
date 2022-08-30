@@ -124,8 +124,8 @@
             </li>
             <li>
               <ui-element>
-                <label for="randomize-avoid-ub" title="If checked, Randomize will try to avoid generating equations which would invoke undefined behavior.">Generate Undefined Behavior</label>
-                <input type="checkbox" id="randomize-avoid-ub">
+                <label for="randomize-avoid-ub" title="If checked, Randomize will try to avoid generating equations which would invoke undefined behavior.">Avoid Undefined Behavior</label>
+                <input type="checkbox" id="randomize-avoid-ub" checked="true">
               </ui-element>
             </li>
           </ul>
@@ -142,10 +142,10 @@
         <details>
           <summary>Shader Information</summary>
           <h3>Shader Source</h3>
+          <pre id="ub-check-display" class="error-text"></pre>
           <textarea id="shader-source-display"></textarea>
-          <pre id="ub-check-display"></pre>
         </details>
-        <pre id="error-msg"></pre>
+        <pre id="error-msg" class="error-text"></pre>
       </f-col>
       <f-col class="gap-1 canvas-column">
         <canvas id="canvas" height="1024" width="1024" tabindex="1"></canvas>

@@ -278,6 +278,27 @@ export class BinOp {
             return null;
         }
     }
+
+    /**
+     * Returns true if the bin_op definitely has undefined behavior.
+     * @returns {UBType | null}
+     * @typedef {"divide by zero" | "overwide left shift"} UBType
+     */
+    has_ub() {
+        let right_val = expr_extract_value(this.right);
+
+        let divide_by_zero = this.op.value == "/" && right_val === 0;
+        let overwide_shift = this.op.value == "<<" && (typeof right_val == "number" && right_val > 32);
+
+
+        if (divide_by_zero) {
+            return "divide by zero";
+        } else if (overwide_shift) {
+            return "overwide left shift";
+        } else {
+            return null;
+        }
+    }
 }
 
 /**
@@ -321,7 +342,10 @@ class TokenStream {
         }
     }
 
-    /** @returns {Value | BinOp} */
+    /** 
+     * @typedef {Value | BinOp} Expr
+     * @returns {Value | BinOp} 
+     */
     parse_expr() {
         let terms = [];
         let ops = [];
@@ -412,23 +436,39 @@ class TokenStream {
 }
 
 /**
- * Returns true if the bin_op definitely has undefined behavior.
- * @param {BinOp} bin_op
- * @returns {boolean}
+ * Checks the entire expression for undefined behavior. If there is any, it reports what kind of
+ * undefined behavior was found and where.
+ * @param {Expr} expr
+ * @returns {{location: Expr, type: UBType} | null}
  */
-export function has_ub(bin_op) {
-    let right_val = expr_extract_value(bin_op.right);
+export function find_ub(expr) {
+    if (expr instanceof Value) {
+        return null;
+    }
 
-    let divide_by_zero = bin_op.op.value == "/" && right_val === 0;
-    let overwide_shift = bin_op.op.value == "<<" && (typeof right_val == "number" && right_val > 32);
-    return divide_by_zero || overwide_shift;
+    let left = find_ub(expr.left);
+    if (left) {
+        return left;
+    }
+
+    let right = find_ub(expr.right);
+    if (right) {
+        return right;
+    }
+
+    let type = expr.has_ub();
+    if (type) {
+        return { location: expr, type };
+    } else {
+        return null;
+    }
 }
 
 
 /**
  * Try to parse a string into an expression.
  * @param {string} bytebeat
- * @returns {Value | BinOp | null}
+ * @returns {Expr | null}
  */
 export function try_parse(bytebeat) {
     let tokens;

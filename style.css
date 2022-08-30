@@ -68,7 +68,7 @@ main {
     align-items: center;
 }
 
-#error-msg {
+.error-text {
     color: red;
     word-wrap: break-word;
     white-space: pre-wrap;
@@ -97,6 +97,11 @@ main {
 
 #equation-history button {
     white-space: pre;
+}
+
+#shader-source-display {
+    resize: vertical;
+    height: 400px;
 }
 
 @keyframes fadeOut {

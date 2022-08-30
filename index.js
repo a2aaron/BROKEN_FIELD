@@ -1,4 +1,4 @@
-import { BinOp, try_parse } from "./parse.js";
+import { BinOp, find_ub, try_parse } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
@@ -173,6 +173,30 @@ function set_bytebeat(bytebeat) {
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
 
    shader_source_textarea.value = get_fragment_shader_source(bytebeat);
+
+   let ub_msg = "";
+   let expr = try_parse(bytebeat);
+   if (expr) {
+      let ub_info = find_ub(expr);
+      if (ub_info) {
+         let { type, location } = ub_info;
+         let ub_reason = "";
+         switch (type) {
+            case "divide by zero":
+               ub_reason = "A divide by zero occurs here. (The denominator of your program always evaluates to zero)"
+            case "overwide left shift":
+         }     ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
+         ub_msg = `Warning: Your program has undefined behavior!
+This might mean that your program might display differently or not work on other computers.
+   
+The following part of your program exhibits the undefined behavior:
+
+   ${location.toString()}
+
+The reason for the undefined behavior is: ${ub_reason}.`;
+      }
+   }
+   ub_display.innerText = ub_msg;
 }
 
 function update_coord_display() {
