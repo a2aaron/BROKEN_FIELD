@@ -274,9 +274,7 @@ function main() {
    });
    wrap_value_input.addEventListener("input", () => render(gl));
    color_input.addEventListener("input", () => render(gl));
-   time_scale_input.addEventListener("input", () => {
-      render(gl);
-   });
+   time_scale_input.addEventListener("input", () => render(gl));
 
    canvas_size_x_input.addEventListener("input", () => {
       canvas.width = parseInt(canvas_size_x_input.value);
@@ -363,9 +361,9 @@ function main() {
       }
    })
 
-   screenshot_button.addEventListener("click", () => {
-      take_screenshot(gl, canvas);
-   })
+   screenshot_button.addEventListener("click", () => take_screenshot(gl, canvas))
+   // Take a screenshot on mouse press.
+   canvas.addEventListener("click", () => take_screenshot(gl, canvas));
 
    // Handle mouse movements on the canvas
    canvas.addEventListener("mousemove", (event) => {
@@ -375,9 +373,6 @@ function main() {
 
       update_coord_display();
    })
-
-   // Take a screenshot on mouse press.
-   canvas.addEventListener("click", () => take_screenshot(gl, canvas));
 
    // Start or stop recording
    canvas.addEventListener("keydown", (event) => {
