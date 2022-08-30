@@ -5,6 +5,9 @@ import { getTypedElementById, unwrap } from "./util.js";
 export class Recorder {
     /** @type {"webm" | "gif" | null} */
     #current_recording;
+    /** @type {import("./gif.js") | null} */
+    #gif_recorder;
+
     /**
      * @param {HTMLCanvasElement} canvas 
      */
@@ -20,6 +23,7 @@ export class Recorder {
         this.recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.video_display);
 
         this.#current_recording = null;
+        this.#gif_recorder = null;
     }
 
     is_recording() {
@@ -54,8 +58,11 @@ export class Recorder {
      * @param {number} height
      * @param {number} delay
      */
-    manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
-        if (this.is_recording()) { return; }
+    async manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
+        if (this.is_recording()) {
+            this.#gif_recorder?.abort();
+            return;
+        }
 
         this.#current_recording = "gif";
 
@@ -67,9 +74,10 @@ export class Recorder {
         let programInfo = compileBytebeat(gl, bytebeat);
 
         // Set up the gif.js GIF object
-        let gif = new GIF(gif_settings(width, height));
+        // @ts-ignore (Can't import the GIF object for some reason)
+        this.#gif_recorder = new GIF(gif_settings(width, height));
 
-        gif.on('finished', (/** @type {Blob} */ blob) => {
+        this.#gif_recorder.on('finished', (/** @type {Blob} */ blob) => {
             this.#hide_recording_indicator();
 
             this.image_display.src = URL.createObjectURL(blob);
@@ -77,7 +85,12 @@ export class Recorder {
             this.#current_recording = null;
         })
 
-        gif.on('progress', (/** @type { number } */ progress) => {
+        this.#gif_recorder.on('abort', () => {
+            this.#hide_recording_indicator();
+            this.#current_recording = null;
+        })
+
+        this.#gif_recorder.on('progress', (/** @type { number } */ progress) => {
             this.#show_recording_indicator(`Rendering to GIF... (Rendering - ${(progress * 100).toFixed(2)}%)`);
         })
 
@@ -85,11 +98,12 @@ export class Recorder {
         for (let i = start_t; i < end_t; i++) {
             params.time = i;
             renderBytebeat(gl, programInfo, params);
-            gif.addFrame(canvas, { copy: true, delay });
+            this.#gif_recorder.addFrame(canvas, { copy: true, delay });
             this.#show_recording_indicator(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
+            await yieldToEventLoop();
         }
 
-        gif.render();
+        this.#gif_recorder.render();
     }
 
     /**
@@ -167,3 +181,7 @@ function gif_settings(width, height) {
         workers: 32,
     }
 };
+
+function yieldToEventLoop() {
+    return new Promise((t, e) => setTimeout(t, 0));
+}
