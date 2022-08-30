@@ -55,20 +55,9 @@ const recorder = new Recorder(canvas);
 /**
  * Render the bytebeat, writing out to the `error-msg` element if an error occurs.
  * @param {WebGL2RenderingContext} gl
- * @param {boolean} should_recompile if true, then recompile the shader
  */
-export function render_or_compile(gl, should_recompile) {
+export function render(gl) {
    const params = get_ui_parameters();
-   if (should_recompile) {
-      try {
-         BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, params.bytebeat);
-         LAST_FRAME_TIME = Date.now();
-         render_error_messages();
-      } catch (err) {
-         // @ts-ignore
-         render_error_messages(err);
-      }
-   }
 
    if (BYTEBEAT_PROGRAM_INFO != null) {
       const now = Date.now();
@@ -168,9 +157,17 @@ function set_ui(params) {
  * @param {string} bytebeat
  */
 function set_bytebeat(bytebeat) {
-   render_or_compile(gl, true);
-
    bytebeat_textarea.value = bytebeat;
+
+   try {
+      BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
+      LAST_FRAME_TIME = Date.now();
+      render_error_messages();
+   } catch (err) {
+      // @ts-ignore
+      render_error_messages(err);
+   }
+
    const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
 
@@ -220,7 +217,7 @@ function take_screenshot(gl, canvas) {
    // See the links below for more information.
    // https://stackoverflow.com/questions/32556939/saving-canvas-to-image-via-canvas-todataurl-results-in-black-rectangle?noredirect=1&lq=1
    // https://webglfundamentals.org/webgl/lessons/webgl-tips.html
-   render_or_compile(gl, false);
+   render(gl);
    const image_data = canvas.toDataURL('png');
    screenshot_display.src = image_data;
    recorder.show_video_element("image");
@@ -245,7 +242,7 @@ function clickable_bytebeat(params) {
 
    button.onclick = () => {
       set_ui(params);
-      render_or_compile(gl, true);
+      render(gl);
    }
    return button
 }
@@ -254,10 +251,10 @@ function main() {
    bytebeat_textarea.addEventListener("input", () => {
       set_bytebeat(bytebeat_textarea.value);
    });
-   wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
-   color_input.addEventListener("input", () => render_or_compile(gl, false));
+   wrap_value_input.addEventListener("input", () => render(gl));
+   color_input.addEventListener("input", () => render(gl));
    time_scale_input.addEventListener("input", () => {
-      render_or_compile(gl, false);
+      render(gl);
    });
 
    canvas_size_x_input.addEventListener("input", () => {
@@ -274,7 +271,7 @@ function main() {
       CURRENT_FRAME = get_ui_parameters().time_start;
       KEYBOARD_X = 0;
       KEYBOARD_Y = 0;
-      render_or_compile(gl, false);
+      render(gl);
       update_coord_display();
    })
 
@@ -447,7 +444,8 @@ function main() {
 
    CURRENT_FRAME = get_ui_parameters().time_start;
 
-   render_or_compile(gl, true);
+   set_bytebeat(bytebeat_textarea.value);
+   render(gl);
    animation_loop();
    update_coord_display();
 
@@ -455,7 +453,7 @@ function main() {
    getTypedElementById(HTMLPreElement, "vertex-shader-source").innerText = get_vertex_shader_source();
 
    function animation_loop() {
-      render_or_compile(gl, false);
+      render(gl);
       requestAnimationFrame(animation_loop);
    }
 }
