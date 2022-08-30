@@ -153,7 +153,11 @@ function set_ui(params) {
 }
 
 /**
- * Sets the current bytebeat.
+ * Sets the current bytebeat. This function does the following things
+ * - updates the UI (bytebeat_textarea, shader_source_display)
+ * - attempts to compile the given bytebeat, setting BYTEBEAT_PROGRAM_INFO on success
+ * - displays error messages on compilation failure
+ * - display UB detection messages
  * @param {string} bytebeat
  */
 function set_bytebeat(bytebeat) {
@@ -195,10 +199,17 @@ The reason for the undefined behavior is: ${ub_reason}.`;
    ub_display.innerText = ub_msg;
 }
 
+/**
+ * Set the coordinates display to the current MOUSE/KEYBOARD values.
+ */
 function update_coord_display() {
    coord_display.innerText = `Mouse: (${MOUSE_X.toFixed(0)}, ${MOUSE_Y.toFixed(0)})\nKeyboard: (${KEYBOARD_X}, ${KEYBOARD_Y})`;
 }
 
+/**
+ * Randomize the color_input value to a random color with a value of 1.0.
+ * A value of 1.0 ensures the chosen color is not too dark.
+ */
 function randomize_color() {
    const hue = Math.random();
    const saturation = Math.random();
@@ -223,29 +234,35 @@ function take_screenshot(gl, canvas) {
    recorder.show_video_element("image");
 }
 
-/** @param {StringParameters} params */
+/**
+ * Add a button to the Randomization History dropdown. This takes a StringParameters and not just
+ * a single bytebeat string in order to preserve the color/time controls/etc.
+ * @param {StringParameters} params */
 function add_bytebeat_history(params) {
    const history_list = getTypedElementById(HTMLUListElement, "equation-history");
    const node = h("li", {}, clickable_bytebeat(params));
    history_list.prepend(node);
+
+   /** 
+    * Create a clickable button that sets the current UI parameters to `params` when clicked.
+    * @param {StringParameters} params */
+   function clickable_bytebeat(params) {
+      let button_text = params.bytebeat;
+      if (button_text.length > 70) {
+         button_text = button_text.substring(0, 70) + "...";
+      }
+      let button = h("button", {},
+         h("code", {}, button_text)
+      );
+
+      button.onclick = () => {
+         set_ui(params);
+         render(gl);
+      }
+      return button
+   }
 }
 
-/** @param {StringParameters} params */
-function clickable_bytebeat(params) {
-   let button_text = params.bytebeat;
-   if (button_text.length > 70) {
-      button_text = button_text.substring(0, 70) + "...";
-   }
-   let button = h("button", {},
-      h("code", {}, button_text)
-   );
-
-   button.onclick = () => {
-      set_ui(params);
-      render(gl);
-   }
-   return button
-}
 
 function main() {
    bytebeat_textarea.addEventListener("input", () => {
@@ -449,6 +466,7 @@ function main() {
    animation_loop();
    update_coord_display();
 
+   // Set the fragment/vertex shader source displays at the bottom of the page.
    getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}");
    getTypedElementById(HTMLPreElement, "vertex-shader-source").innerText = get_vertex_shader_source();
 
