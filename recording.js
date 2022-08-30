@@ -5,9 +5,11 @@ import { getTypedElementById, unwrap } from "./util.js";
 export class Recorder {
     /** @type {GIFRenderer | null} */
     #gif_recorder;
+    /** @type {MediaRecorderWrapper} */
+    #webm_recorder;
 
     /**
-     * @param {HTMLCanvasElement} canvas 
+     * @param {HTMLCanvasElement} canvas The visible canvas to attach the WebM recorder to.
      */
     constructor(canvas) {
         /** @type {BlobPart[]} */
@@ -22,31 +24,31 @@ export class Recorder {
 
         this.canvas = canvas;
 
-        this.recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.media_display);
+        this.#webm_recorder = new MediaRecorderWrapper(this.canvas.captureStream(), this.media_display);
         this.#gif_recorder = null;
     }
 
     is_recording() {
-        return this.#gif_recorder?.is_rendering || this.recorder.is_recording;
+        return this.#gif_recorder?.is_rendering || this.#webm_recorder.is_recording;
     }
 
     start() {
         if (this.is_recording()) { return; }
 
         this.video_chunks = [];
-        this.recorder.start();
+        this.#webm_recorder.start();
         this.indicator.show("Recording WebM... (Press R to stop recording)");
     }
 
     stop() {
-        if (!this.recorder.is_recording) { return; }
+        if (!this.#webm_recorder.is_recording) { return; }
 
         this.indicator.hide();
-        this.recorder.stop();
+        this.#webm_recorder.stop();
     }
 
     /**
-     * Manually record a video between the start and end frames.
+     * Manually record a GIF.
      * @param {import("./shader.js").BytebeatParams} params
      * @param {number} start_t
      * @param {number} end_t
@@ -61,8 +63,8 @@ export class Recorder {
             this.#gif_recorder?.abort();
         }
 
-        this.#gif_recorder = new GIFRenderer(bytebeat, width, height, this.indicator, this.media_display);
-        this.#gif_recorder.render(start_t, end_t, params, delay);
+        this.#gif_recorder = new GIFRenderer(this.indicator, this.media_display);
+        this.#gif_recorder.render(bytebeat, width, height, start_t, end_t, params, delay);
     }
 }
 
@@ -123,28 +125,21 @@ class MediaDisplay {
     }
 }
 
+/**
+ * Render a GIF asynchronously.
+ */
 class GIFRenderer {
     /**
-     * @param {string} bytebeat
-     * @param {number} width
-     * @param {number} height
-     * @param {RecordingIndicator} indicator
-     * @param {MediaDisplay} display
+     * @param {RecordingIndicator} indicator The indicator to display the current recording progress
+     * @param {MediaDisplay} display The MediaDisplay to show the gif once rendered
      */
-    constructor(bytebeat, width, height, indicator, display) {
-        // Set up the canvas
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.gl = unwrap(this.canvas.getContext("webgl2"));
-        this.programInfo = compileBytebeat(this.gl, bytebeat);
-
+    constructor(indicator, display) {
         this.indicator = indicator;
         this.is_rendering = false;
 
         // Set up the gif.js GIF object
         // @ts-ignore (Can't import the GIF object for some reason)
-        this.gif = new GIF(gif_settings(width, height));
+        this.gif = new GIF(gif_settings());
 
         this.gif.on('finished', (/** @type {Blob} */ blob) => {
             this.indicator.hide();
@@ -163,12 +158,24 @@ class GIFRenderer {
     }
 
     /**
+     * Render the bytebeat with the given paremeters, canvas size, etc. This is an async method
+     * and can be aborted by calling the `abort()` method.
+     * @param {string} bytebeat
+     * @param {number} width
+     * @param {number} height
      * @param {number} start_t
      * @param {number} end_t
      * @param {import("./shader.js").BytebeatParams} params
      * @param {number} delay
      */
-    async render(start_t, end_t, params, delay) {
+    async render(bytebeat, width, height, start_t, end_t, params, delay) {
+        // Set up the canvas
+        let canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        let gl = unwrap(canvas.getContext("webgl2"));
+        let programInfo = compileBytebeat(gl, bytebeat);
+
         this.is_rendering = true;
 
         // Record all frames
@@ -177,8 +184,8 @@ class GIFRenderer {
                 return;
             }
             params.time = i;
-            renderBytebeat(this.gl, this.programInfo, params);
-            this.gif.addFrame(this.canvas, { copy: true, delay });
+            renderBytebeat(gl, programInfo, params);
+            this.gif.addFrame(canvas, { copy: true, delay });
             this.indicator.show(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
             await yieldToEventLoop();
         }
@@ -194,10 +201,13 @@ class GIFRenderer {
     }
 }
 
+/**
+ * Attaches a MediaRecorder to the given MediaStream and displays the recording in a MediaDisplay
+ */
 class MediaRecorderWrapper {
     /**
-     * @param {MediaStream} media_stream
-     * @param {MediaDisplay} display
+     * @param {MediaStream} media_stream the MediaStream to attach to
+     * @param {MediaDisplay} display the MediaDisplay to display the WebM once recorded.
      */
     constructor(media_stream, display) {
         this.media_recorder = new MediaRecorder(media_stream, { videoBitsPerSecond: 1028 * 1000000 });
@@ -232,16 +242,10 @@ class MediaRecorderWrapper {
     }
 }
 
-/**
- * @param {any} width
- * @param {any} height
- */
-function gif_settings(width, height) {
+function gif_settings() {
     return {
         quality: 0,
         background: "#000000",
-        width,
-        height,
         dither: false,
         repeat: 0, // repeat forever
         workers: 32,
