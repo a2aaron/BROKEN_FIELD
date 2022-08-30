@@ -161,25 +161,30 @@ function set_ui(params) {
  * @param {string} bytebeat
  */
 function set_bytebeat(bytebeat) {
+   const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
+   const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
+
    bytebeat_textarea.value = bytebeat;
+   shader_source_textarea.value = get_fragment_shader_source(bytebeat);
 
    try {
       BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
       LAST_FRAME_TIME = Date.now();
+
       render_error_messages();
+      let ub_info = BYTEBEAT_PROGRAM_INFO?.parse_info.ub_info;
+      ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
    } catch (err) {
       // @ts-ignore
       render_error_messages(err);
+      ub_display.innerText = "";
    }
 
-   const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
-   const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
-
-   shader_source_textarea.value = get_fragment_shader_source(bytebeat);
-
-   let ub_msg = "";
-   let ub_info = BYTEBEAT_PROGRAM_INFO?.parse_info.ub_info;
-   if (ub_info) {
+   /**
+    * Turn a UBInfo into a useful user message.
+    * @param {import("./parse.js").UBInfo} ub_info
+    */
+   function get_ub_message(ub_info) {
       let { type, location } = ub_info;
       let ub_reason = "";
       switch (type) {
@@ -187,7 +192,7 @@ function set_bytebeat(bytebeat) {
             ub_reason = "A divide by zero occurs here. (The denominator of your program always evaluates to zero)"
          case "overwide left shift":
       }     ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
-      ub_msg = `Warning: Your program has undefined behavior!
+      return `Warning: Your program has undefined behavior!
 This might mean that your program might display differently or not work on other computers.
    
 The following part of your program exhibits the undefined behavior:
@@ -196,7 +201,6 @@ The following part of your program exhibits the undefined behavior:
 
 The reason for the undefined behavior is: ${ub_reason}.`;
    }
-   ub_display.innerText = ub_msg;
 }
 
 /**

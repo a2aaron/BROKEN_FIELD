@@ -84,13 +84,9 @@ export function mutate_bytebeat(bytebeat) {
     let match_values = /t|sx|sy|kx|ky|mx|my|[\d]+/g;
     let match_operators = /\+|\-|\*|\/|\^|\&|\||\%|\>\>|\<\</g;
 
-    console.log(bytebeat);
-
     if (mutate_values) {
         bytebeat = bytebeat.replace(match_values, (match, ...rest) => {
-            console.log(match);
             if (Math.random() < 0.25) {
-                console.log("h");
                 return random_value().toString();
             } else {
                 return match;

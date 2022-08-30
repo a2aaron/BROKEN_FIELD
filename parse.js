@@ -547,7 +547,8 @@ class TokenStream {
  * Checks the entire expression for undefined behavior. If there is any, it reports what kind of
  * undefined behavior was found and where.
  * @param {Expr} expr
- * @returns {{location: Expr, type: UBType} | null}
+ * @returns {UBInfo | null}
+ * @typedef {{location: Expr, type: UBType}} UBInfo
  */
 export function find_ub(expr) {
     if (expr instanceof Value) {

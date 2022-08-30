@@ -8,7 +8,6 @@ export function render_error_messages(...errors) {
     let message = "";
 
     for (let error of errors) {
-        console.log(error);
         message += recursively_to_string(error);
         message += "\n\n";
     }

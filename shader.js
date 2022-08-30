@@ -257,12 +257,11 @@ function render(gl, positionAttributeIndex) {
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat to render
  * @return {typeof programInfo}
+ * @throws {Error} Throws is the bytebeat cannot be compiled.
  * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
  */
 export function compileBytebeat(gl, bytebeat) {
     const vsSource = get_vertex_shader_source();
-
-    console.log(parse_program(bytebeat));
     const fsSource = get_fragment_shader_source(bytebeat);
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
