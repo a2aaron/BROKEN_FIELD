@@ -1,4 +1,4 @@
-import { BinOp, find_ub, try_parse } from "./parse.js";
+import { BinOp, find_ub } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
@@ -168,6 +168,8 @@ function set_ui(params) {
  * @param {string} bytebeat
  */
 function set_bytebeat(bytebeat) {
+   render_or_compile(gl, true);
+
    bytebeat_textarea.value = bytebeat;
    const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
@@ -175,18 +177,16 @@ function set_bytebeat(bytebeat) {
    shader_source_textarea.value = get_fragment_shader_source(bytebeat);
 
    let ub_msg = "";
-   let expr = try_parse(bytebeat);
-   if (expr) {
-      let ub_info = find_ub(expr);
-      if (ub_info) {
-         let { type, location } = ub_info;
-         let ub_reason = "";
-         switch (type) {
-            case "divide by zero":
-               ub_reason = "A divide by zero occurs here. (The denominator of your program always evaluates to zero)"
-            case "overwide left shift":
-         }     ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
-         ub_msg = `Warning: Your program has undefined behavior!
+   let ub_info = BYTEBEAT_PROGRAM_INFO?.parse_info.ub_info;
+   if (ub_info) {
+      let { type, location } = ub_info;
+      let ub_reason = "";
+      switch (type) {
+         case "divide by zero":
+            ub_reason = "A divide by zero occurs here. (The denominator of your program always evaluates to zero)"
+         case "overwide left shift":
+      }     ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
+      ub_msg = `Warning: Your program has undefined behavior!
 This might mean that your program might display differently or not work on other computers.
    
 The following part of your program exhibits the undefined behavior:
@@ -194,7 +194,6 @@ The following part of your program exhibits the undefined behavior:
    ${location.toString()}
 
 The reason for the undefined behavior is: ${ub_reason}.`;
-      }
    }
    ub_display.innerText = ub_msg;
 }
@@ -254,7 +253,6 @@ function clickable_bytebeat(params) {
 function main() {
    bytebeat_textarea.addEventListener("input", () => {
       set_bytebeat(bytebeat_textarea.value);
-      render_or_compile(gl, true)
    });
    wrap_value_input.addEventListener("input", () => render_or_compile(gl, false));
    color_input.addEventListener("input", () => render_or_compile(gl, false));
@@ -285,24 +283,21 @@ function main() {
 
       randomize_color();
       set_bytebeat(random_bytebeat());
-      render_or_compile(gl, true);
    })
 
    mutate_button.addEventListener("click", () => {
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       set_bytebeat(mutate_bytebeat(bytebeat_textarea.value));
-      render_or_compile(gl, true);
    })
 
    simplify_button.addEventListener("click", () => {
-      let parsed = try_parse(bytebeat_textarea.value);
+      let parsed = BYTEBEAT_PROGRAM_INFO?.parse_info.expr;
       if (parsed instanceof BinOp) {
          let simple = parsed.simplify();
          if (bytebeat_textarea.value != simple.toString()) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
-            bytebeat_textarea.value = simple.toString();
-            render_or_compile(gl, true);
+            set_bytebeat(simple.toString());
          }
       }
    });

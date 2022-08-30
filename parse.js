@@ -4,6 +4,46 @@ export const VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 
 const MAX_PRECEDENCE = 12;
 
+export class Program {
+    /** @param {string} bytebeat */
+    constructor(bytebeat) {
+        let expr = try_parse(bytebeat);
+        if (expr instanceof Error) {
+            this.error = expr;
+            this.expr = null;
+            this.ub_info = null;
+            return;
+        }
+
+        this.error = null;
+        this.expr = expr;
+        this.ub_info = find_ub(expr);
+
+        /**
+         * Try to parse a string into an expression.
+         * @param {string} bytebeat
+         * @returns {Expr | Error}
+         */
+        function try_parse(bytebeat) {
+            let tokens = TokenStream.tokenize(bytebeat);
+            if (tokens instanceof Error) {
+                return tokens;
+            }
+
+            try {
+                let expr = tokens.parse_expr();
+                return expr;
+            } catch (err) {
+                if (err instanceof Error) {
+                    return err;
+                } else {
+                    throw err;
+                }
+            }
+        }
+    }
+}
+
 export class Op {
     /** @param {string} value */
     constructor(value) {
@@ -324,9 +364,68 @@ class TokenStream {
         this.index = index;
     }
 
+    /**
+     * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
+     * or a close paren.
+     * @param {string} bytebeat the bytebeat source to tokenize
+     * @returns {TokenStream | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
+     */
+    static tokenize(bytebeat) {
+        let i = 0;
+
+        let tokens = [];
+        outer:
+        while (i < bytebeat.length) {
+            let remaining = bytebeat.substring(i);
+
+            let this_char = bytebeat[i];
+            let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
+
+            if (this_char == " " || this_char == "\n") {
+                i += 1;
+                continue;
+            }
+
+            if (this_char == "(" || this_char == ")") {
+                i += 1;
+                tokens.push(this_char);
+                continue;
+            }
+
+            for (const op of OPERATORS) {
+                if (remaining.startsWith(op)) {
+                    tokens.push(new Op(op));
+                    i += op.length;
+                    continue outer;
+                }
+            }
+
+            for (const varible of VARIABLES) {
+                if (remaining.startsWith(varible)) {
+                    tokens.push(new Value(varible));
+                    i += varible.length;
+                    continue outer;
+                }
+            }
+
+            let number = try_consume_number(remaining);
+            if (number != null) {
+                tokens.push(new Value(number.value));
+                i += number.tokens_consumed;
+                continue;
+            }
+
+            return new Error(`Unrecognized token: ${this_char}`);
+        }
+        return new TokenStream(tokens, 0);
+    }
+
     /** 
+     * Consumes tokens from the TokenStream and constructs a Term
      * @typedef {Value | BinOp} Term
-     * @returns {Term} */
+     * @returns {Term} 
+     * @throws {Error} throws if the TokenStream is malformed
+     */
     parse_term() {
         const next_token = this.peek();
         if (next_token == "(") {
@@ -343,8 +442,10 @@ class TokenStream {
     }
 
     /** 
+     * Consumes tokens from the TokenStream and constructs an Expr
      * @typedef {Value | BinOp} Expr
-     * @returns {Value | BinOp} 
+     * @returns {Expr}
+     * @throws {Error} throws if the TokenStream is malformed
      */
     parse_expr() {
         let terms = [];
@@ -371,15 +472,22 @@ class TokenStream {
         return term_stream(terms, ops);
 
         /**
-         * Turn a stream of terms into a single Value or BinOp. The terms and ops are interleaved 
+         * Turn a stream of terms into a single Term. The terms and ops are interleaved 
          * like so:
          * terms: 0   1   2   3   4   5
          * ops  :   0   1   2   3   4
          * @param {Term[]} terms
          * @param {Op[]} ops
-         * @return {Value | BinOp}
+         * @return {Term} The sequence of Terms and Ops transformed a single Term containing
+         * all of the Terms as children. The return value is a Value is there was only one Term in
+         * the input array. Otherweise the return value is a BinOp.
+         * @throws {Error} Throws if the term stream could not be parsed into a term.
          */
         function term_stream(terms, ops) {
+            if (ops.length + 1 != terms.length) {
+                throw new Error(`Expected terms array to containg one more element than the ops array. Got ${terms.length} terms and ${ops.length} ops`)
+            }
+
             // We scan over the term stream, looking for a highest-precendence op (numberically, this is the lowest 
             // op.precendence() value). For the first one we find, we bind the two adjacent terms around it
             // and create a single larger term containing the terms and op. Then we keep doing this until
@@ -464,101 +572,21 @@ export function find_ub(expr) {
     }
 }
 
-
 /**
- * Try to parse a string into an expression.
- * @param {string} bytebeat
- * @returns {Expr | null}
+ * @param {string} input
+ * @return {{value: number, tokens_consumed: number} | null}
  */
-export function try_parse(bytebeat) {
-    let tokens;
-    try {
-        tokens = tokenize(bytebeat);
-    } catch (e) {
-        console.error(e);
-        return null;
-    }
-
-    try {
-        let expr = tokens.parse_expr();
-        return expr;
-    } catch (e) {
-        console.error("Couldn't parse token stream: ", tokens.stream, e);
-        return null;
-    }
-
-    /**
-     * Tokensize the bytebeat into a sequence of tokens. A token is a Value, Op, an open paren,
-     * or a close paren.
-     * @param {string} bytebeat
-     * @returns {TokenStream}
-     */
-    function tokenize(bytebeat) {
-        let i = 0;
-
-        let tokens = [];
-        outer:
-        while (i < bytebeat.length) {
-            let remaining = bytebeat.substring(i);
-
-            let this_char = bytebeat[i];
-            let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
-
-            if (this_char == " " || this_char == "\n") {
-                i += 1;
-                continue;
-            }
-
-            if (this_char == "(" || this_char == ")") {
-                i += 1;
-                tokens.push(this_char);
-                continue;
-            }
-
-            for (const op of OPERATORS) {
-                if (remaining.startsWith(op)) {
-                    tokens.push(new Op(op));
-                    i += op.length;
-                    continue outer;
-                }
-            }
-
-            for (const varible of VARIABLES) {
-                if (remaining.startsWith(varible)) {
-                    tokens.push(new Value(varible));
-                    i += varible.length;
-                    continue outer;
-                }
-            }
-
-            let number = try_consume_number(remaining);
-            if (number != null) {
-                tokens.push(new Value(number.value));
-                i += number.tokens_consumed;
-                continue;
-            }
-
-            throw new Error(`Unrecognized token: ${this_char}`);
+function try_consume_number(input) {
+    let number = "";
+    for (let i = 0; i < input.length; i++) {
+        let this_char = input[i];
+        if (!isNaN(parseInt(this_char))) {
+            number += this_char;
+        } else {
+            break;
         }
-        return new TokenStream(tokens, 0);
     }
-
-    /**
-     * @param {string} input
-     * @return {{value: number, tokens_consumed: number} | null}
-     */
-    function try_consume_number(input) {
-        let number = "";
-        for (let i = 0; i < input.length; i++) {
-            let this_char = input[i];
-            if (!isNaN(parseInt(this_char))) {
-                number += this_char;
-            } else {
-                break;
-            }
-        }
-        return number == "" ? null : { value: parseInt(number), tokens_consumed: number.length };
-    }
+    return number == "" ? null : { value: parseInt(number), tokens_consumed: number.length };
 }
 
 /**

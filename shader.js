@@ -1,3 +1,4 @@
+import { Program } from "./parse.js";
 import { unwrap } from "./util.js";
 
 /**
@@ -293,7 +294,8 @@ export function compileBytebeat(gl, bytebeat) {
         },
         attribs: {
             position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
-        }
+        },
+        parse_info: new Program(bytebeat),
     };
 
     initBuffers(gl);
