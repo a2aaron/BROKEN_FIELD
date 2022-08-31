@@ -82,7 +82,9 @@ function random_binop(max_depth) {
  * @returns {string}
  */
 export function random_bytebeat() {
-    let expr = random_binop(20);
+    let depth_limit = getTypedElementById(HTMLInputElement, "randomize-depth-limit");
+    let max_depth = parseInt(depth_limit.value);
+    let expr = random_binop(max_depth);
     return expr.toString();
 }
 
