@@ -313,6 +313,14 @@ export class BinOpExpr {
                 return applied;
             }
         }
+
+        // ?x - (-?a) => ?x + ?a
+        if (right instanceof UnaryOpExpr) {
+            if (right.op.toString() == "-" && this.op.toString() == "-") {
+                return new BinOpExpr(left, new BinOp("+"), right.value);
+            }
+        }
+
         return new BinOpExpr(left, this.op, right);
 
 
