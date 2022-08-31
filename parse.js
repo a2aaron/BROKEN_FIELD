@@ -1,4 +1,4 @@
-import { is_bin_op_token, is_un_op_token, tokenize } from "./tokenize.js";
+import { FLOAT_VARIABLES, INTEGER_VARIABLES, is_bin_op_token, is_un_op_token, tokenize } from "./tokenize.js";
 
 /**
  * Typedef imports
@@ -11,6 +11,10 @@ import { is_bin_op_token, is_un_op_token, tokenize } from "./tokenize.js";
  * Undefined Behavior Typedefs
  * @typedef {"divide by zero" | "overwide left shift"} UBType
  * @typedef {{location: Expr, type: UBType}} UBInfo
+ */
+
+/**
+ * @typedef {"boolean" | "float" | "int" | "unknown" | "error"} GLSLType
  */
 
 const MAX_PRECEDENCE = 12;
@@ -158,11 +162,27 @@ export class BinOp {
 }
 
 
-/** @template {string | number} [T=string | number] */
+/** @template {string | number | boolean} [T=string | number | boolean] */
 export class Value {
     /** @param {T} value */
     constructor(value) {
         this.value = value;
+    }
+
+    /** @returns {GLSLType} */
+    type() {
+        if (typeof this.value == "string") {
+            if (INTEGER_VARIABLES.includes(this.value)) {
+                return "int";
+            } else if (FLOAT_VARIABLES.includes(this.value)) {
+                return "float";
+            }
+        } else if (typeof this.value == "number") {
+            return Number.isInteger(this.value) ? "int" : "float";
+        } else if (typeof this.value == "boolean") {
+            return "boolean";
+        }
+        return "unknown";
     }
 
     /** @returns {this is Value<number>} */
@@ -228,6 +248,21 @@ export class UnaryOpExpr {
     }
 
     check_ub() { return null; }
+
+    /** @returns {GLSLType} */
+    type() {
+        let value_type = this.value.type();
+        if (is_unknown_or_error(value_type)) {
+            return value_type;
+        }
+
+        switch (this.op.value) {
+            case "+": return value_type == "int" || value_type == "float" ? value_type : "error";
+            case "-": return value_type == "int" || value_type == "float" ? value_type : "error";
+            case "~": return value_type == "int" ? value_type : "error";
+            case "!": return value_type == "boolean" ? value_type : "error";
+        }
+    }
 }
 
 export class BinOpExpr {
@@ -388,6 +423,46 @@ export class BinOpExpr {
             return { location: this, type: "overwide left shift" };
         } else {
             return null;
+        }
+    }
+
+    /** @returns {GLSLType} */
+    type() {
+        let left_ty = this.left.type();
+        let right_ty = this.right.type();
+
+        if (is_unknown_or_error(left_ty)) {
+            return left_ty;
+        } else if (is_unknown_or_error(right_ty)) {
+            return right_ty;
+        }
+
+        switch (this.op.value) {
+            case "+":
+            case "-":
+            case "*":
+            case "/":
+            case "%": return require(left_ty, right_ty, "int", "float")
+            case "^":
+            case "&":
+            case "|":
+            case ">>":
+            case "<<": return require(left_ty, right_ty, "int");
+        }
+
+        /**
+         * Require that both types equal one of the expected_types, or else return the "error" type
+         * @param {GLSLType} left_type
+         * @param {GLSLType[]} expected_types
+         * @param {GLSLType} right_type
+         */
+        function require(left_type, right_type, ...expected_types) {
+            for (const type of expected_types) {
+                if (left_type == type && right_type == type) {
+                    return type;
+                }
+            }
+            return "error";
         }
     }
 }
@@ -615,9 +690,14 @@ function needs_parenthesis(parent, child, which_child) {
     }
 }
 
+/** @param {GLSLType} type  */
+function is_unknown_or_error(type) {
+    return type == "unknown" || type == "error";
+}
+
 /**
  * @param {Expr} expr
- * @returns {string | number | null}
+ * @returns {string | number | boolean | null}
  */
 function expr_extract_value(expr) {
     let simple_expr = expr.simplify();

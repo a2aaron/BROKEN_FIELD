@@ -4,7 +4,8 @@ import { BinOp, TokenStream, Value } from "./parse.js";
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
- * @typedef {"(" | ")" | OpToken | Value} Token
+ * @typedef {"int" | "float" | "bool"} TypeToken
+ * @typedef {"(" | ")" | TypeToken | OpToken | Value} Token
  */
 
 /** @type {BinOpToken[]} */
@@ -14,7 +15,17 @@ const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
 // @ts-ignore
 const OPERATORS = BINARY_OPERATORS.concat(UNARY_OPERATORS);
-export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
+
+export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
+export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
+
+const BOOLEANS = ["true", "false"];
+
+/** @type {TypeToken[]} */
+const TYPE_TOKENS = ["int", "float", "bool"];
+
+const VALUE_TOKENS = INTEGER_VARIABLES.concat(FLOAT_VARIABLES);
+
 
 /**
 * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
@@ -53,10 +64,26 @@ export function tokenize(bytebeat) {
             }
         }
 
-        for (const varible of BUILTIN_VARIABLES) {
-            if (remaining.startsWith(varible)) {
-                tokens.push(new Value(varible));
-                i += varible.length;
+        for (const bool of BOOLEANS) {
+            if (remaining.startsWith(bool)) {
+                tokens.push(new Value(bool == "true"));
+                i += bool.length;
+                continue outer;
+            }
+        }
+
+        for (const value of VALUE_TOKENS) {
+            if (remaining.startsWith(value)) {
+                tokens.push(new Value(value));
+                i += value.length;
+                continue outer;
+            }
+        }
+
+        for (const type of TYPE_TOKENS) {
+            if (remaining.startsWith(type)) {
+                tokens.push(type);
+                i += type.length;
                 continue outer;
             }
         }
