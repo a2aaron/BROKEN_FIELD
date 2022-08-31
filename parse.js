@@ -1,4 +1,4 @@
-import { tokenize } from "./tokenize";
+import { tokenize } from "./tokenize.js";
 
 const MAX_PRECEDENCE = 12;
 

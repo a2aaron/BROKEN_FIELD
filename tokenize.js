@@ -1,4 +1,4 @@
-import { BinOp, TokenStream, Value } from "./parse";
+import { BinOp, TokenStream, Value } from "./parse.js";
 
 const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
 export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
