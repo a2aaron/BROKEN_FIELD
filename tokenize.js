@@ -1,6 +1,6 @@
 import { BinOp, TokenStream, Value } from "./parse";
 
-const OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
+const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
 export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 
 /**
@@ -31,7 +31,7 @@ export function tokenize(bytebeat) {
             continue;
         }
 
-        for (const op of OPERATORS) {
+        for (const op of BINARY_OPERATORS) {
             if (remaining.startsWith(op)) {
                 tokens.push(new BinOp(op));
                 i += op.length;
