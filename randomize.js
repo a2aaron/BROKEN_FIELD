@@ -1,11 +1,15 @@
-import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp } from "./parse.js";
+import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program } from "./parse.js";
 import { BUILTIN_VARIABLES } from "./tokenize.js";
 import { getTypedElementById, isNumber } from "./util.js";
 
-/** @typedef {import("./parse.js").Expr} Expr */
+/** 
+ * @typedef {import("./parse.js").Expr} Expr
+ * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
+ * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
+ */
 
 /** @returns {BinOp} */
-function random_op() {
+function random_bin_op() {
     /** @type {import("./tokenize.js").BinOpToken} */
     let op = choose(
         "+", "-", "*", "/",
@@ -13,6 +17,11 @@ function random_op() {
         "&", "^", "|",
         "&", "^", "|");
     return new BinOp(op);
+}
+
+/** @returns {UnaryOp} */
+function random_un_op() {
+    return new UnaryOp(choose("-", "~"));
 }
 
 
@@ -28,7 +37,7 @@ function random_value() {
 function random_un_op_expr() {
     let value = random_value();
     if (Math.random() < 0.25) {
-        let op = new UnaryOp(choose("-", "~"));
+        let op = random_un_op();
         return new UnaryOpExpr(value, op);
     }
     return value;
@@ -38,9 +47,9 @@ function random_un_op_expr() {
  * @param {number} max_depth
  * @returns {BinOpExpr}
  */
-function random_binop(max_depth) {
+function random_binop_expr(max_depth) {
     for (let i = 0; i < 5; i++) {
-        let bin_op = generate_binop(max_depth);
+        let bin_op = generate_binop_expr(max_depth);
 
         if (avoid_ub() && bin_op.check_ub()) {
             continue;
@@ -50,11 +59,11 @@ function random_binop(max_depth) {
     }
     // Give up after 5 failed attempts to avoid UB.
     console.log("Couldn't prevent UB!");
-    return generate_binop(max_depth);
+    return generate_binop_expr(max_depth);
 
     /** @param {number} max_depth */
-    function generate_binop(max_depth) {
-        let op = random_op();
+    function generate_binop_expr(max_depth) {
+        let op = random_bin_op();
         if (max_depth == 0) {
             let left = random_value();
             let right = random_value();
@@ -63,13 +72,13 @@ function random_binop(max_depth) {
             /** @type { Expr } */
             let left = random_un_op_expr();
             if (Math.random() > 0.5) {
-                left = random_binop(max_depth - 1);
+                left = random_binop_expr(max_depth - 1);
             }
 
             /** @type { Expr } */
             let right = random_un_op_expr();
             if (Math.random() > 0.5) {
-                right = random_binop(max_depth - 1);
+                right = random_binop_expr(max_depth - 1);
             }
 
             return new BinOpExpr(left, op, right);
@@ -84,7 +93,7 @@ function random_binop(max_depth) {
 export function random_bytebeat() {
     let depth_limit = getTypedElementById(HTMLInputElement, "randomize-depth-limit");
     let max_depth = parseInt(depth_limit.value);
-    let expr = random_binop(max_depth);
+    let expr = random_binop_expr(max_depth);
     return expr.toString();
 }
 
@@ -97,33 +106,47 @@ export function mutate_bytebeat(bytebeat) {
     let mutate_ops = getTypedElementById(HTMLInputElement, "mutate-enable-ops").checked;
     let mutate_values = getTypedElementById(HTMLInputElement, "mutate-enable-values").checked;
 
-    let match_values = /t|sx|sy|kx|ky|mx|my|[\d]+/g;
-    let match_operators = /\+|\-|\*|\/|\^|\&|\||\%|\>\>|\<\</g;
-
-    if (mutate_values) {
-        bytebeat = bytebeat.replace(match_values, (match, ...rest) => {
-            if (Math.random() < 0.25) {
-                return random_value().toString();
-            } else {
-                return match;
-            }
-        });
+    let program = new Program(bytebeat);
+    if (program.expr == null) {
+        return bytebeat;
     }
 
-    if (mutate_ops) {
-        bytebeat = bytebeat.replace(match_operators, (match, ...rest) => {
-            if (Math.random() < 0.25) {
-                return random_op().toString();
+    let expr = mutate(program.expr, mutate_values, mutate_ops);
+    return expr.toString()
+
+    /**
+     * @param {Expr} expr
+     * @param {boolean} mutate_values
+     * @param {boolean} mutate_ops
+     * @returns {Expr}
+     */
+    function mutate(expr, mutate_values, mutate_ops) {
+        if (expr instanceof Value) {
+            if (mutate_values && Math.random() < 0.25) {
+                return random_value();
             } else {
-                return match;
+                return expr;
             }
-        });
+        } else if (expr instanceof BinOpExpr) {
+            let left = mutate(expr.left, mutate_values, mutate_ops);
+            let right = mutate(expr.right, mutate_values, mutate_ops);;
+            let op = expr.op;
+            if (mutate_ops && Math.random() < 0.25) {
+                op = random_bin_op();
+            }
+            return new BinOpExpr(left, op, right);
+        } else if (expr instanceof UnaryOpExpr) {
+            let value = mutate(expr.value, mutate_values, mutate_ops);
+            let op = expr.op;
+            if (mutate_ops && Math.random() < 0.25) {
+                op = random_un_op();
+            }
+            return new UnaryOpExpr(value, op);
+        }
+
+        return expr;
     }
-
-
-    return bytebeat;
 }
-
 
 /** @returns {boolean} */
 function avoid_ub() {
