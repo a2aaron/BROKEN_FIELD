@@ -25,7 +25,7 @@ export class Program {
          * @returns {Expr | Error}
          */
         function try_parse(bytebeat) {
-            let tokens = TokenStream.tokenize(bytebeat);
+            let tokens = tokenize(bytebeat);
             if (tokens instanceof Error) {
                 return tokens;
             }
@@ -357,67 +357,10 @@ class TokenStream {
     /**
      * @typedef {string | Value | BinOp} Token
      * @param {Token[]} stream
-     * @param {number} index
      */
-    constructor(stream, index) {
+    constructor(stream) {
         this.stream = stream;
-        this.index = index;
-    }
-
-    /**
-     * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
-     * or a close paren.
-     * @param {string} bytebeat the bytebeat source to tokenize
-     * @returns {TokenStream | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
-     */
-    static tokenize(bytebeat) {
-        let i = 0;
-
-        let tokens = [];
-        outer:
-        while (i < bytebeat.length) {
-            let remaining = bytebeat.substring(i);
-
-            let this_char = bytebeat[i];
-            let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
-
-            if (this_char == " " || this_char == "\n") {
-                i += 1;
-                continue;
-            }
-
-            if (this_char == "(" || this_char == ")") {
-                i += 1;
-                tokens.push(this_char);
-                continue;
-            }
-
-            for (const op of OPERATORS) {
-                if (remaining.startsWith(op)) {
-                    tokens.push(new BinOp(op));
-                    i += op.length;
-                    continue outer;
-                }
-            }
-
-            for (const varible of VARIABLES) {
-                if (remaining.startsWith(varible)) {
-                    tokens.push(new Value(varible));
-                    i += varible.length;
-                    continue outer;
-                }
-            }
-
-            let number = try_consume_number(remaining);
-            if (number != null) {
-                tokens.push(new Value(number.value));
-                i += number.tokens_consumed;
-                continue;
-            }
-
-            return new Error(`Unrecognized token: ${this_char}`);
-        }
-        return new TokenStream(tokens, 0);
+        this.index = 0;
     }
 
     /** 
@@ -541,6 +484,62 @@ class TokenStream {
             throw new Error(`Expected ${token}, got ${this.stream[this.index]}`);
         }
     }
+}
+
+/**
+ * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
+ * or a close paren.
+ * @param {string} bytebeat the bytebeat source to tokenize
+ * @returns {TokenStream | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
+ */
+function tokenize(bytebeat) {
+    let i = 0;
+
+    let tokens = [];
+    outer:
+    while (i < bytebeat.length) {
+        let remaining = bytebeat.substring(i);
+
+        let this_char = bytebeat[i];
+        let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
+
+        if (this_char == " " || this_char == "\n") {
+            i += 1;
+            continue;
+        }
+
+        if (this_char == "(" || this_char == ")") {
+            i += 1;
+            tokens.push(this_char);
+            continue;
+        }
+
+        for (const op of OPERATORS) {
+            if (remaining.startsWith(op)) {
+                tokens.push(new BinOp(op));
+                i += op.length;
+                continue outer;
+            }
+        }
+
+        for (const varible of VARIABLES) {
+            if (remaining.startsWith(varible)) {
+                tokens.push(new Value(varible));
+                i += varible.length;
+                continue outer;
+            }
+        }
+
+        let number = try_consume_number(remaining);
+        if (number != null) {
+            tokens.push(new Value(number.value));
+            i += number.tokens_consumed;
+            continue;
+        }
+
+        return new Error(`Unrecognized token: ${this_char}`);
+    }
+    return new TokenStream(tokens);
 }
 
 /**
