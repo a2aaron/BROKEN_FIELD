@@ -1,6 +1,8 @@
-import { BinOpExpr, BinOp, Value } from "./parse.js";
+import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp } from "./parse.js";
 import { BUILTIN_VARIABLES } from "./tokenize.js";
 import { getTypedElementById, isNumber } from "./util.js";
+
+/** @typedef {import("./parse.js").Expr} Expr */
 
 /** @returns {BinOp} */
 function random_op() {
@@ -20,6 +22,16 @@ function random_value() {
     // @ts-ignore
     let value = choose(Math.floor(Math.random() * 256), ...allowed_generator_values());
     return new Value(value);
+}
+
+/** @returns {UnaryOpExpr | Value} */
+function random_un_op_expr() {
+    let value = random_value();
+    if (Math.random() < 0.25) {
+        let op = new UnaryOp(choose("-", "~"));
+        return new UnaryOpExpr(value, op);
+    }
+    return value;
 }
 
 /**
@@ -48,14 +60,14 @@ function random_binop(max_depth) {
             let right = random_value();
             return new BinOpExpr(left, op, right);
         } else {
-            /** @type { Value | BinOpExpr } */
-            let left = random_value();
+            /** @type { Expr } */
+            let left = random_un_op_expr();
             if (Math.random() > 0.5) {
                 left = random_binop(max_depth - 1);
             }
 
-            /** @type { Value | BinOpExpr } */
-            let right = random_value();
+            /** @type { Expr } */
+            let right = random_un_op_expr();
             if (Math.random() > 0.5) {
                 right = random_binop(max_depth - 1);
             }

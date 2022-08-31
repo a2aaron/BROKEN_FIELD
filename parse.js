@@ -56,7 +56,7 @@ export class Program {
     }
 }
 
-class UnaryOp {
+export class UnaryOp {
     /** @param {UnaryOpToken} value */
     constructor(value) { this.value = value; }
 
@@ -64,14 +64,21 @@ class UnaryOp {
     toString() { return this.value; }
 
     /**
-     * @param {number | boolean} a
-     * @returns {number | boolean}
+     * @template {number | boolean} T
+     * @param {T} a
+     * @returns {T}
      */
     eval(a) {
+        console.log(a);
+        // TODO: how to make this typecheck?
         switch (this.value) {
+            // @ts-ignore
             case "+": return +a;
+            // @ts-ignore
             case "-": return -a;
+            // @ts-ignore
             case "~": return ~a;
+            // @ts-ignore
             case "!": return !a;
         }
     }
@@ -169,13 +176,13 @@ export class Value {
         return this.value.toString();
     }
 
-    /** @returns {Value} */
+    /** @returns {Value<T>} */
     simplify() { return this; }
 
     check_ub() { return null; }
 }
 
-class UnaryOpExpr {
+export class UnaryOpExpr {
     /**
      * @param {Expr} value
      * @param {UnaryOp} op
@@ -191,8 +198,16 @@ class UnaryOpExpr {
         return `${this.op.toString()}(${this.value.toString()})`;
     }
 
+    /**
+     * @returns {UnaryOpExpr | Value}
+     */
     simplify() {
-        // TODO
+        let value = this.value.simplify();
+        if (value instanceof Value) {
+            if (value.isNumber()) {
+                return new Value(this.op.eval(value.value));
+            }
+        }
         return this;
     }
 
