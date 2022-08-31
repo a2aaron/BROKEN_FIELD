@@ -1,4 +1,5 @@
-import { BinOpExpr, BinOp, Value, VARIABLES } from "./parse.js";
+import { BinOpExpr, BinOp, Value } from "./parse.js";
+import { BUILTIN_VARIABLES } from "./tokenize.js";
 import { getTypedElementById, isNumber } from "./util.js";
 
 /** @returns {BinOp} */
@@ -117,7 +118,7 @@ function avoid_ub() {
 /** @returns {string[]} */
 function allowed_generator_values() {
     let values = [];
-    for (const variable of VARIABLES) {
+    for (const variable of BUILTIN_VARIABLES) {
         let checkbox = getTypedElementById(HTMLInputElement, `randomize-enable-${variable}`);
         if (checkbox.checked) {
             values.push(variable);

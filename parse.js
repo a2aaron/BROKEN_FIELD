@@ -1,6 +1,4 @@
-
-const OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
-export const VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
+import { tokenize } from "./tokenize";
 
 const MAX_PRECEDENCE = 12;
 
@@ -353,7 +351,7 @@ export class BinOpExpr {
  * Explanation of grammar: The "term" and "expr" are largely the same concept--both will parse to either
  * a Value or BinOp. However, an expression is a sequence of terms, while a term is typically a "single expression"
  */
-class TokenStream {
+export class TokenStream {
     /**
      * @typedef {string | Value | BinOp} Token
      * @param {Token[]} stream
@@ -487,62 +485,6 @@ class TokenStream {
 }
 
 /**
- * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
- * or a close paren.
- * @param {string} bytebeat the bytebeat source to tokenize
- * @returns {TokenStream | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
- */
-function tokenize(bytebeat) {
-    let i = 0;
-
-    let tokens = [];
-    outer:
-    while (i < bytebeat.length) {
-        let remaining = bytebeat.substring(i);
-
-        let this_char = bytebeat[i];
-        let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
-
-        if (this_char == " " || this_char == "\n") {
-            i += 1;
-            continue;
-        }
-
-        if (this_char == "(" || this_char == ")") {
-            i += 1;
-            tokens.push(this_char);
-            continue;
-        }
-
-        for (const op of OPERATORS) {
-            if (remaining.startsWith(op)) {
-                tokens.push(new BinOp(op));
-                i += op.length;
-                continue outer;
-            }
-        }
-
-        for (const varible of VARIABLES) {
-            if (remaining.startsWith(varible)) {
-                tokens.push(new Value(varible));
-                i += varible.length;
-                continue outer;
-            }
-        }
-
-        let number = try_consume_number(remaining);
-        if (number != null) {
-            tokens.push(new Value(number.value));
-            i += number.tokens_consumed;
-            continue;
-        }
-
-        return new Error(`Unrecognized token: ${this_char}`);
-    }
-    return new TokenStream(tokens);
-}
-
-/**
  * Checks the entire expression for undefined behavior. If there is any, it reports what kind of
  * undefined behavior was found and where.
  * @param {Expr} expr
@@ -570,23 +512,6 @@ export function find_ub(expr) {
     } else {
         return null;
     }
-}
-
-/**
- * @param {string} input
- * @return {{value: number, tokens_consumed: number} | null}
- */
-function try_consume_number(input) {
-    let number = "";
-    for (let i = 0; i < input.length; i++) {
-        let this_char = input[i];
-        if (!isNaN(parseInt(this_char))) {
-            number += this_char;
-        } else {
-            break;
-        }
-    }
-    return number == "" ? null : { value: parseInt(number), tokens_consumed: number.length };
 }
 
 /**
