@@ -1,11 +1,12 @@
 import { BinOp, TokenStream, Value } from "./parse.js";
 
 /**
+ * @typedef {number | boolean} Literal
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
- * @typedef {"(" | ")" | TypeToken | OpToken | Value} Token
+ * @typedef {"(" | ")" | "=" | ";" | TypeToken | OpToken | Identifier | Literal} Token
  */
 
 /** @type {BinOpToken[]} */
@@ -24,7 +25,24 @@ const BOOLEANS = ["true", "false"];
 /** @type {TypeToken[]} */
 const TYPE_TOKENS = ["int", "float", "bool"];
 
-const VALUE_TOKENS = INTEGER_VARIABLES.concat(FLOAT_VARIABLES);
+export class Identifier {
+    /** @param {string} identifier */
+    constructor(identifier) {
+        this.identifier = identifier;
+    }
+
+    toString() { return this.identifier; }
+
+    type() {
+        if (INTEGER_VARIABLES.includes(this.identifier)) {
+            return "int";
+        } else if (FLOAT_VARIABLES.includes(this.identifier)) {
+            return "float";
+        } else {
+            return "unknown";
+        }
+    }
+}
 
 
 /**
@@ -43,15 +61,15 @@ export function tokenize(bytebeat) {
         let remaining = bytebeat.substring(i);
 
         let this_char = bytebeat[i];
-        let next_char = i + 1 < bytebeat.length ? bytebeat[i + 1] : null;
 
         if (this_char == " " || this_char == "\n") {
             i += 1;
             continue;
         }
 
-        if (this_char == "(" || this_char == ")") {
+        if (["(", ")", "=", ";"].includes(this_char)) {
             i += 1;
+            // @ts-ignore
             tokens.push(this_char);
             continue;
         }
@@ -66,16 +84,8 @@ export function tokenize(bytebeat) {
 
         for (const bool of BOOLEANS) {
             if (remaining.startsWith(bool)) {
-                tokens.push(new Value(bool == "true"));
+                tokens.push(bool == "true");
                 i += bool.length;
-                continue outer;
-            }
-        }
-
-        for (const value of VALUE_TOKENS) {
-            if (remaining.startsWith(value)) {
-                tokens.push(new Value(value));
-                i += value.length;
                 continue outer;
             }
         }
@@ -90,14 +100,28 @@ export function tokenize(bytebeat) {
 
         let number = try_consume_number(remaining);
         if (number != null) {
-            tokens.push(new Value(number.value));
+            tokens.push(number.value);
             i += number.tokens_consumed;
             continue;
         }
 
+        let ident = try_consume_identifier(remaining);
+        if (ident != null) {
+            tokens.push(new Identifier(ident.ident));
+            i += ident.tokens_consumed;
+            continue;
+        }
         return new Error(`Unrecognized token: ${this_char}`);
     }
     return new TokenStream(tokens);
+}
+
+/**
+ * @param {Token | null} token 
+ * @returns {token is Literal}
+ */
+export function is_literal(token) {
+    return typeof token == "number" || typeof token == "boolean"
 }
 
 /**
@@ -119,6 +143,29 @@ export function is_un_op_token(token) {
     return UNARY_OPERATORS.includes(token);
 }
 
+/**
+ * @param {Token | null} token
+ * @returns {token is TypeToken}
+ */
+export function is_type_token(token) {
+    // @ts-ignore
+    return TYPE_TOKENS.includes(token);
+}
+
+/**
+ * @param {string} input
+ * @return {{ident: string, tokens_consumed: number} | null}
+ */
+function try_consume_identifier(input) {
+    // Match a single alphabetical (and _) and then match any number of alphanumeric (and _), at the
+    // start of the string.
+    let regex = /^[a-zA-Z_][a-zA-Z_0-9]*/;
+    let matches = regex.exec(input);
+    if (!matches) {
+        return null;
+    }
+    return { ident: matches[0], tokens_consumed: matches[0].length };
+}
 
 /**
  * @param {string} input

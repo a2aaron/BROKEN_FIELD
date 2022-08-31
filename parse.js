@@ -1,9 +1,11 @@
-import { FLOAT_VARIABLES, INTEGER_VARIABLES, is_bin_op_token, is_un_op_token, tokenize } from "./tokenize.js";
+import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, is_bin_op_token, is_literal, is_type_token, is_un_op_token, tokenize } from "./tokenize.js";
 
 /**
  * Typedef imports
+ * @typedef {import("./tokenize.js").Literal} Literal
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
  * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
+ * @typedef {import("./tokenize.js").TypeToken} TypeToken
  * @typedef {import("./tokenize.js").Token} Token
  */
 
@@ -14,7 +16,7 @@ import { FLOAT_VARIABLES, INTEGER_VARIABLES, is_bin_op_token, is_un_op_token, to
  */
 
 /**
- * @typedef {"boolean" | "float" | "int" | "unknown" | "error"} GLSLType
+ * @typedef {TypeToken | "unknown" | "error"} GLSLType
  */
 
 const MAX_PRECEDENCE = 12;
@@ -48,6 +50,9 @@ export class Program {
 
             try {
                 let expr = tokens.parse_expr();
+                if (tokens.peek() != null) {
+                    console.log("Warning: Tokenstream not empty after parse");
+                }
                 return expr;
             } catch (err) {
                 if (err instanceof Error) {
@@ -68,7 +73,7 @@ export class UnaryOp {
     toString() { return this.value; }
 
     /**
-     * @template {number | boolean} T
+     * @template {Literal} T
      * @param {T} a
      * @returns {T}
      */
@@ -104,21 +109,31 @@ export class BinOp {
     }
 
     /**
-     * @param {number} a
-     * @param {number} b
-     * @returns {number}
+     * @param {Literal} a
+     * @param {Literal} b
+     * @returns {Literal}
      */
     eval(a, b) {
         switch (this.value) {
+            // @ts-ignore
             case "+": return a + b;
+            // @ts-ignore
             case "-": return a - b;
+            // @ts-ignore
             case "*": return a * b;
+            // @ts-ignore
             case "/": return b == 0 ? 0 : (a / b) | 0;
+            // @ts-ignore
             case "%": return b == 0 ? 0 : a % b;
+            // @ts-ignore
             case "^": return a ^ b;
+            // @ts-ignore
             case "&": return a & b;
+            // @ts-ignore
             case "|": return a | b;
+            // @ts-ignore
             case ">>": return a >> b;
+            // @ts-ignore
             case "<<": return a << b;
         }
     }
@@ -162,32 +177,35 @@ export class BinOp {
 }
 
 
-/** @template {string | number | boolean} [T=string | number | boolean] */
+/** @template {Identifier | Literal} [T=Identifier | Literal] */
 export class Value {
-    /** @param {T} value */
+    /** @param {T | string} value */
     constructor(value) {
-        this.value = value;
+        /** @type {T} */
+        this.value;
+        if (typeof value == "string") {
+            // @ts-ignore
+            this.value = new Identifier(value);
+        } else {
+            this.value = value;
+        }
     }
 
     /** @returns {GLSLType} */
     type() {
-        if (typeof this.value == "string") {
-            if (INTEGER_VARIABLES.includes(this.value)) {
-                return "int";
-            } else if (FLOAT_VARIABLES.includes(this.value)) {
-                return "float";
-            }
+        if (this.value instanceof Identifier) {
+            return this.value.type();
         } else if (typeof this.value == "number") {
             return Number.isInteger(this.value) ? "int" : "float";
         } else if (typeof this.value == "boolean") {
-            return "boolean";
+            return "bool";
         }
         return "unknown";
     }
 
-    /** @returns {this is Value<number>} */
-    isNumber() {
-        return typeof this.value == "number";
+    /** @returns {this is Value<Literal>} */
+    isLiteral() {
+        return is_literal(this.value);
     }
 
     /** @returns {string} */
@@ -226,7 +244,7 @@ export class UnaryOpExpr {
     simplify() {
         let value = this.value.simplify();
         if (value instanceof Value) {
-            if (value.isNumber()) {
+            if (value.isLiteral()) {
                 return new Value(this.op.eval(value.value));
             }
         }
@@ -260,7 +278,7 @@ export class UnaryOpExpr {
             case "+": return value_type == "int" || value_type == "float" ? value_type : "error";
             case "-": return value_type == "int" || value_type == "float" ? value_type : "error";
             case "~": return value_type == "int" ? value_type : "error";
-            case "!": return value_type == "boolean" ? value_type : "error";
+            case "!": return value_type == "bool" ? value_type : "error";
         }
     }
 }
@@ -298,7 +316,7 @@ export class BinOpExpr {
         let right = this.right.simplify();
 
         if (left instanceof Value && right instanceof Value) {
-            if (left.isNumber() && right.isNumber()) {
+            if (left.isLiteral() && right.isLiteral()) {
                 return new Value(this.op.eval(left.value, right.value));
             }
         }
@@ -333,10 +351,13 @@ export class BinOpExpr {
             ["0", ">>", "?a", 0],
             ["0", "<<", "?a", 0],
         ];
-        for (let [rule_left, rule_op, rule_right, result, commutative] of rules) {
+        for (let [rule_left, rule_op, rule_right, rule_result, commutative] of rules) {
             rule_left = rule_left.trim();
             rule_op = rule_op.trim();
             rule_right = rule_right.trim();
+            /** @type {"?a" | Expr} */
+            let result = rule_result == "?a" ? "?a" : new Value(rule_result);
+
             const is_commutative = commutative === "commutative";
 
             let applied = try_apply_rule(rule_left, rule_op, rule_right, result, left, this.op.toString(), right);
@@ -364,7 +385,7 @@ export class BinOpExpr {
          * @param {string} rule_left
          * @param {string} rule_op
          * @param {string} rule_right
-         * @param {string | number} result
+         * @param {"?a" | Expr} result
          * @param {Expr} left
          * @param {string} op
          * @param {Expr} right
@@ -384,12 +405,16 @@ export class BinOpExpr {
             }
 
             if (op_matches && values_match) {
-                if (result == "?a" && rule_left == "?a") {
-                    return left;
-                } else if (result == "?a" && rule_left == "?a") {
-                    return right;
+                if (result == "?a") {
+                    if (rule_left == "?a") {
+                        return left;
+                    } else if (rule_left == "?a") {
+                        return right;
+                    } else {
+                        throw new Error("Malformed simplification rule.");
+                    }
                 } else {
-                    return new Value(result);
+                    return result;
                 }
             }
 
@@ -467,13 +492,29 @@ export class BinOpExpr {
     }
 }
 
+class Assign {
+    /**
+     * @param {GLSLType | null} type
+     * @param {Identifier} ident
+     * @param {Expr} expr
+     */
+    constructor(type, ident, expr) {
+        this.explicit_type = type;
+        this.ident = ident;
+        this.expr = expr;
+    }
+}
+
 /**
- * <variable> ::= "t" | "sx" | "sy" | "mx" | "my" | "kx" | k"y"
+ * <type>     ::= "int" | "float" | "bool"
  * <un_op>    ::= "+" | "-" | "~" | "!"
  * <bin_op>   ::= "+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "^" | "|"
- * <value>    ::= <number> | <variable>
+ * <literal>  ::= <number> | "true" | "false"
+ * <value>    ::= <literal> | <identifier>
  * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
  * <expr>     ::= <term> (<bin_op> <term>)*
+ * <assign>   ::= <type>? <ident> "=" <expr> ";"
+ * <program>  ::= <assign>* <expr>
  * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
  * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
  * 
@@ -490,6 +531,41 @@ export class TokenStream {
     constructor(stream) {
         this.stream = stream;
         this.index = 0;
+    }
+
+    /** @returns {TypeToken | null} */
+    try_parse_type() {
+        const next_token = this.peek();
+        if (is_type_token(next_token)) {
+            this.consume(next_token);
+            return next_token;
+        } else {
+            return null;
+        }
+    }
+
+    parse_identifier() {
+        const next_token = this.peek();
+        if (next_token instanceof Identifier) {
+            this.consume(next_token);
+            return next_token;
+        } else {
+            throw new Error(`Expected an identifier, got ${next_token}`);
+        }
+    }
+
+    parse_value() {
+        const next_token = this.peek();
+        if (is_literal(next_token)) {
+            this.consume(next_token);
+            return new Value(next_token);
+        } else if (next_token instanceof Identifier) {
+            this.consume(next_token);
+            return new Value(next_token);
+        } else {
+            throw new Error(`Expected literal or identifier, got ${next_token}`);
+        }
+
     }
 
     parse_un_op() {
@@ -524,15 +600,12 @@ export class TokenStream {
             const expr = this.parse_expr();
             this.consume(")");
             return expr;
-        } else if (next_token instanceof Value) {
-            this.consume(next_token);
-            return next_token;
         } else if (is_un_op_token(next_token)) {
             const op = this.parse_un_op();
             const term = this.parse_term()
             return new UnaryOpExpr(term, op);
         } else {
-            throw new Error(`Expected a right paren or value, got ${next_token}`);
+            return this.parse_value();
         }
     }
 
@@ -616,6 +689,15 @@ export class TokenStream {
         }
     }
 
+    parse_assign() {
+        let type = this.try_parse_type();
+        let identifier = this.parse_identifier();
+        this.consume("=");
+        let expr = this.parse_expr();
+        this.consume(";");
+        return new Assign(type, identifier, expr);
+    }
+
     /** @return {Token | null} */
     peek() {
         if (this.index < this.stream.length) {
@@ -697,7 +779,7 @@ function is_unknown_or_error(type) {
 
 /**
  * @param {Expr} expr
- * @returns {string | number | boolean | null}
+ * @returns {Identifier | Literal | null}
  */
 function expr_extract_value(expr) {
     let simple_expr = expr.simplify();

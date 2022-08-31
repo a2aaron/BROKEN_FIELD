@@ -1,4 +1,4 @@
-import { BinOpExpr } from "./parse.js";
+import { BinOpExpr, Program } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
@@ -46,6 +46,8 @@ const gl = unwrap(canvas.getContext("webgl2"));
 
 /** @type {import("./shader.js").ProgramInfo | null} */
 let BYTEBEAT_PROGRAM_INFO = null;
+/** @type {Program} */
+let PARSE_INFO = new Program("(sx ^ sy) + t");
 
 let MOUSE_X = 0;
 let MOUSE_Y = 0;
@@ -171,12 +173,14 @@ function set_bytebeat(bytebeat) {
    bytebeat_textarea.value = bytebeat;
    shader_source_textarea.value = get_fragment_shader_source(bytebeat);
 
+   PARSE_INFO = new Program(bytebeat);
+
    try {
       BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
       LAST_FRAME_TIME = Date.now();
 
       render_error_messages();
-      let ub_info = BYTEBEAT_PROGRAM_INFO?.parse_info.ub_info;
+      let ub_info = PARSE_INFO.ub_info;
       ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
    } catch (err) {
       // @ts-ignore
@@ -185,8 +189,8 @@ function set_bytebeat(bytebeat) {
       ub_display.innerText = "";
    }
 
-   if (BYTEBEAT_PROGRAM_INFO?.parse_info.error) {
-      console.log(BYTEBEAT_PROGRAM_INFO?.parse_info.error);
+   if (PARSE_INFO.error) {
+      console.log(PARSE_INFO.error);
    }
 
    /**
@@ -322,7 +326,7 @@ function main() {
    })
 
    simplify_button.addEventListener("click", () => {
-      let parsed = BYTEBEAT_PROGRAM_INFO?.parse_info.expr;
+      let parsed = PARSE_INFO.expr;
       if (parsed) {
          let simple = parsed.simplify();
          if (bytebeat_textarea.value != simple.toString()) {
