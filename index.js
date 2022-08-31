@@ -181,6 +181,7 @@ function set_bytebeat(bytebeat) {
    } catch (err) {
       // @ts-ignore
       render_error_messages(err);
+      BYTEBEAT_PROGRAM_INFO = null;
       ub_display.innerText = "";
    }
 
