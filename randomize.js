@@ -1,14 +1,14 @@
-import { BinOp, Op, Value, VARIABLES } from "./parse.js";
+import { BinOpExpr, BinOp, Value, VARIABLES } from "./parse.js";
 import { getTypedElementById, isNumber } from "./util.js";
 
-/** @returns {Op} */
+/** @returns {BinOp} */
 function random_op() {
     let op = choose(
         "+", "-", "*", "/",
         "%", "<<", ">>",
         "&", "^", "|",
         "&", "^", "|");
-    return new Op(op);
+    return new BinOp(op);
 }
 
 
@@ -22,7 +22,7 @@ function random_value() {
 
 /**
  * @param {number} max_depth
- * @returns {BinOp}
+ * @returns {BinOpExpr}
  */
 function random_binop(max_depth) {
     for (let i = 0; i < 5; i++) {
@@ -44,21 +44,21 @@ function random_binop(max_depth) {
         if (max_depth == 0) {
             let left = random_value();
             let right = random_value();
-            return new BinOp(left, op, right);
+            return new BinOpExpr(left, op, right);
         } else {
-            /** @type { Value | BinOp } */
+            /** @type { Value | BinOpExpr } */
             let left = random_value();
             if (Math.random() > 0.5) {
                 left = random_binop(max_depth - 1);
             }
 
-            /** @type { Value | BinOp } */
+            /** @type { Value | BinOpExpr } */
             let right = random_value();
             if (Math.random() > 0.5) {
                 right = random_binop(max_depth - 1);
             }
 
-            return new BinOp(left, op, right);
+            return new BinOpExpr(left, op, right);
         }
     }
 }

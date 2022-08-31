@@ -1,4 +1,4 @@
-import { BinOp, find_ub } from "./parse.js";
+import { BinOpExpr, find_ub } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
@@ -311,7 +311,7 @@ function main() {
 
    simplify_button.addEventListener("click", () => {
       let parsed = BYTEBEAT_PROGRAM_INFO?.parse_info.expr;
-      if (parsed instanceof BinOp) {
+      if (parsed instanceof BinOpExpr) {
          let simple = parsed.simplify();
          if (bytebeat_textarea.value != simple.toString()) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));

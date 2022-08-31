@@ -44,7 +44,7 @@ export class Program {
     }
 }
 
-export class Op {
+export class BinOp {
     /** @param {string} value */
     constructor(value) {
         this.value = value;
@@ -152,11 +152,11 @@ export class Value {
     simplify() { return this; }
 }
 
-export class BinOp {
+export class BinOpExpr {
     /**
-     * @param {Value | BinOp} left
-     * @param {Op} op
-     * @param {Value | BinOp} right
+     * @param {Value | BinOpExpr} left
+     * @param {BinOp} op
+     * @param {Value | BinOpExpr} right
      */
     constructor(left, op, right) {
         this.left = left;
@@ -179,8 +179,8 @@ export class BinOp {
         return `${left} ${this.op.toString()} ${right}`;
 
         /**
-         * @param {BinOp} parent
-         * @param {BinOp | Value} child
+         * @param {BinOpExpr} parent
+         * @param {BinOpExpr | Value} child
          * @param {"left" | right} which_child
          */
         function needs_parenthesis(parent, child, which_child) {
@@ -222,7 +222,7 @@ export class BinOp {
         }
     }
 
-    /** @returns {BinOp | Value} */
+    /** @returns {BinOpExpr | Value} */
     simplify() {
         let left = this.left.simplify();
         let right = this.right.simplify();
@@ -278,7 +278,7 @@ export class BinOp {
                 return applied;
             }
         }
-        return new BinOp(left, this.op, right);
+        return new BinOpExpr(left, this.op, right);
 
 
         /**
@@ -287,10 +287,10 @@ export class BinOp {
          * @param {string} rule_op
          * @param {string} rule_right
          * @param {string | number} result
-         * @param {Value | BinOp} left
+         * @param {Value | BinOpExpr} left
          * @param {string} op
-         * @param {Value | BinOp} right
-         * @returns {Value | BinOp | null}
+         * @param {Value | BinOpExpr} right
+         * @returns {Value | BinOpExpr | null}
          */
         function try_apply_rule(rule_left, rule_op, rule_right, result, left, op, right) {
             const op_matches = rule_op == op;
@@ -355,7 +355,7 @@ export class BinOp {
  */
 class TokenStream {
     /**
-     * @typedef {string | Value | Op} Token
+     * @typedef {string | Value | BinOp} Token
      * @param {Token[]} stream
      * @param {number} index
      */
@@ -394,7 +394,7 @@ class TokenStream {
 
             for (const op of OPERATORS) {
                 if (remaining.startsWith(op)) {
-                    tokens.push(new Op(op));
+                    tokens.push(new BinOp(op));
                     i += op.length;
                     continue outer;
                 }
@@ -422,7 +422,7 @@ class TokenStream {
 
     /** 
      * Consumes tokens from the TokenStream and constructs a Term
-     * @typedef {Value | BinOp} Term
+     * @typedef {Value | BinOpExpr} Term
      * @returns {Term} 
      * @throws {Error} throws if the TokenStream is malformed
      */
@@ -443,7 +443,7 @@ class TokenStream {
 
     /** 
      * Consumes tokens from the TokenStream and constructs an Expr
-     * @typedef {Value | BinOp} Expr
+     * @typedef {Value | BinOpExpr} Expr
      * @returns {Expr}
      * @throws {Error} throws if the TokenStream is malformed
      */
@@ -454,7 +454,7 @@ class TokenStream {
         terms.push(this.parse_term());
         while (true) {
             const op = this.peek();
-            if (!(op instanceof Op)) {
+            if (!(op instanceof BinOp)) {
                 break;
             }
             this.consume(op);
@@ -477,7 +477,7 @@ class TokenStream {
          * terms: 0   1   2   3   4   5
          * ops  :   0   1   2   3   4
          * @param {Term[]} terms
-         * @param {Op[]} ops
+         * @param {BinOp[]} ops
          * @return {Term} The sequence of Terms and Ops transformed a single Term containing
          * all of the Terms as children. The return value is a Value is there was only one Term in
          * the input array. Otherweise the return value is a BinOp.
@@ -506,7 +506,7 @@ class TokenStream {
                         let left_term = terms[i];
                         let right_term = terms[i + 1];
                         let op = ops[i];
-                        let bound_term = new BinOp(left_term, op, right_term);
+                        let bound_term = new BinOpExpr(left_term, op, right_term);
 
                         // remove the op from the ops array
                         ops.splice(i, 1);
@@ -591,7 +591,7 @@ function try_consume_number(input) {
 }
 
 /**
- * @param {BinOp | Value} expr
+ * @param {BinOpExpr | Value} expr
  * @returns {string | number | null}
  */
 function expr_extract_value(expr) {
