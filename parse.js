@@ -1,6 +1,20 @@
-import { tokenize } from "./tokenize.js";
+import { is_bin_op_token, is_un_op_token, tokenize } from "./tokenize.js";
+
+/**
+ * Typedef imports
+ * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
+ * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
+ * @typedef {import("./tokenize.js").Token} Token
+ */
+
+/**
+ * Undefined Behavior Typedefs
+ * @typedef {"divide by zero" | "overwide left shift"} UBType
+ * @typedef {{location: Expr, type: UBType}} UBInfo
+ */
 
 const MAX_PRECEDENCE = 12;
+
 
 export class Program {
     /** @param {string} bytebeat */
@@ -15,7 +29,7 @@ export class Program {
 
         this.error = null;
         this.expr = expr;
-        this.ub_info = find_ub(expr);
+        this.ub_info = expr.check_ub();
 
         /**
          * Try to parse a string into an expression.
@@ -42,8 +56,34 @@ export class Program {
     }
 }
 
+class UnaryOp {
+    /** @param {UnaryOpToken} value */
+    constructor(value) { this.value = value; }
+
+    /** @returns {string} */
+    toString() { return this.value; }
+
+    /**
+     * @param {number | boolean} a
+     * @returns {number | boolean}
+     */
+    eval(a) {
+        switch (this.value) {
+            case "+": return +a;
+            case "-": return -a;
+            case "~": return ~a;
+            case "!": return !a;
+        }
+    }
+
+    precedence() { return 3; }
+
+    /** @return {"right"} */
+    lexicial_associativity() { return "right"; }
+}
+
 export class BinOp {
-    /** @param {import("./tokenize.js").BinOpToken} value */
+    /** @param {BinOpToken} value */
     constructor(value) {
         this.value = value;
     }
@@ -131,13 +171,39 @@ export class Value {
 
     /** @returns {Value} */
     simplify() { return this; }
+
+    check_ub() { return null; }
+}
+
+class UnaryOpExpr {
+    /**
+     * @param {Expr} value
+     * @param {UnaryOp} op
+     */
+    constructor(value, op) {
+        this.value = value;
+        this.op = op;
+    }
+
+    /** @returns {string} */
+    toString() {
+        // TODO: Don't include parenthsis when possible
+        return `${this.op.toString()}(${this.value.toString()})`;
+    }
+
+    simplify() {
+        // TODO
+        return this;
+    }
+
+    check_ub() { return null; }
 }
 
 export class BinOpExpr {
     /**
-     * @param {Value | BinOpExpr} left
+     * @param {Expr} left
      * @param {BinOp} op
-     * @param {Value | BinOpExpr} right
+     * @param {Expr} right
      */
     constructor(left, op, right) {
         this.left = left;
@@ -161,7 +227,7 @@ export class BinOpExpr {
 
         /**
          * @param {BinOpExpr} parent
-         * @param {BinOpExpr | Value} child
+         * @param {Expr} child
          * @param {"left" | right} which_child
          */
         function needs_parenthesis(parent, child, which_child) {
@@ -203,7 +269,7 @@ export class BinOpExpr {
         }
     }
 
-    /** @returns {BinOpExpr | Value} */
+    /** @returns {Expr} */
     simplify() {
         let left = this.left.simplify();
         let right = this.right.simplify();
@@ -268,10 +334,10 @@ export class BinOpExpr {
          * @param {string} rule_op
          * @param {string} rule_right
          * @param {string | number} result
-         * @param {Value | BinOpExpr} left
+         * @param {Expr} left
          * @param {string} op
-         * @param {Value | BinOpExpr} right
-         * @returns {Value | BinOpExpr | null}
+         * @param {Expr} right
+         * @returns {Expr | null}
          */
         function try_apply_rule(rule_left, rule_op, rule_right, result, left, op, right) {
             const op_matches = rule_op == op;
@@ -301,21 +367,29 @@ export class BinOpExpr {
     }
 
     /**
-     * Returns true if the bin_op definitely has undefined behavior.
-     * @returns {UBType | null}
-     * @typedef {"divide by zero" | "overwide left shift"} UBType
+     * Return if the BinOpExpr definitely has undefined behavior.
+     * @returns {UBInfo | null}
      */
-    has_ub() {
+    check_ub() {
+        let left = this.left.check_ub();
+        if (left) {
+            return left;
+        }
+
+        let right = this.right.check_ub();
+        if (right) {
+            return right;
+        }
+
         let right_val = expr_extract_value(this.right);
 
         let divide_by_zero = this.op.value == "/" && right_val === 0;
         let overwide_shift = this.op.value == "<<" && (typeof right_val == "number" && right_val > 32);
 
-
         if (divide_by_zero) {
-            return "divide by zero";
+            return { location: this, type: "divide by zero" };
         } else if (overwide_shift) {
-            return "overwide left shift";
+            return { location: this, type: "overwide left shift" };
         } else {
             return null;
         }
@@ -323,20 +397,23 @@ export class BinOpExpr {
 }
 
 /**
- * <variable> ::= t | sx | sy | mx | my | kx | ky
+ * <variable> ::= "t" | "sx" | "sy" | "mx" | "my" | "kx" | k"y"
+ * <un_op>    ::= "+" | "-" | "~" | "!"
+ * <bin_op>   ::= "+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "^" | "|"
  * <value>    ::= <number> | <variable>
- * <op>       :: = + | - | * | / | % | << | >> | & | ^ | |
- * <term>     ::= "(" <expr> ")" | <value>
- * <expr>     ::= <term> (<op> <term>)*
+ * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
+ * <expr>     ::= <term> (<bin_op> <term>)*
  * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
  * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
  * 
- * Explanation of grammar: The "term" and "expr" are largely the same concept--both will parse to either
- * a Value or BinOp. However, an expression is a sequence of terms, while a term is typically a "single expression"
+ * A <term>, from the perspective of an <expr>, is a single unit.
+ * 
+ * @typedef {Value | BinOpExpr | UnaryOpExpr} Term
+ * @typedef {Value | BinOpExpr | UnaryOpExpr} Expr
+ * 
  */
 export class TokenStream {
     /**
-     * @typedef {string | Value | BinOp} Token
      * @param {Token[]} stream
      */
     constructor(stream) {
@@ -344,9 +421,28 @@ export class TokenStream {
         this.index = 0;
     }
 
+    parse_un_op() {
+        const next_token = this.peek();
+        if (is_un_op_token(next_token)) {
+            this.consume(next_token);
+            return new UnaryOp(next_token);
+        } else {
+            throw new Error(`Expected a BinOpToken, got ${next_token}`);
+        }
+    }
+
+    parse_bin_op() {
+        const next_token = this.peek();
+        if (is_bin_op_token(next_token)) {
+            this.consume(next_token);
+            return new BinOp(next_token);
+        } else {
+            throw new Error(`Expected a BinOpToken, got ${next_token}`);
+        }
+    }
+
     /** 
      * Consumes tokens from the TokenStream and constructs a Term
-     * @typedef {Value | BinOpExpr} Term
      * @returns {Term} 
      * @throws {Error} throws if the TokenStream is malformed
      */
@@ -360,6 +456,10 @@ export class TokenStream {
         } else if (next_token instanceof Value) {
             this.consume(next_token);
             return next_token;
+        } else if (is_un_op_token(next_token)) {
+            const op = this.parse_un_op();
+            const term = this.parse_term()
+            return new UnaryOpExpr(term, op);
         } else {
             throw new Error(`Expected a right paren or value, got ${next_token}`);
         }
@@ -367,7 +467,6 @@ export class TokenStream {
 
     /** 
      * Consumes tokens from the TokenStream and constructs an Expr
-     * @typedef {Value | BinOpExpr} Expr
      * @returns {Expr}
      * @throws {Error} throws if the TokenStream is malformed
      */
@@ -377,13 +476,11 @@ export class TokenStream {
 
         terms.push(this.parse_term());
         while (true) {
-            const op = this.peek();
-            if (!(op instanceof BinOp)) {
+            if (!is_bin_op_token(this.peek())) {
                 break;
             }
-            this.consume(op);
+            const op = this.parse_bin_op();
             const term = this.parse_term();
-
             terms.push(term);
             ops.push(op);
         }
@@ -468,37 +565,7 @@ export class TokenStream {
 }
 
 /**
- * Checks the entire expression for undefined behavior. If there is any, it reports what kind of
- * undefined behavior was found and where.
  * @param {Expr} expr
- * @returns {UBInfo | null}
- * @typedef {{location: Expr, type: UBType}} UBInfo
- */
-export function find_ub(expr) {
-    if (expr instanceof Value) {
-        return null;
-    }
-
-    let left = find_ub(expr.left);
-    if (left) {
-        return left;
-    }
-
-    let right = find_ub(expr.right);
-    if (right) {
-        return right;
-    }
-
-    let type = expr.has_ub();
-    if (type) {
-        return { location: expr, type };
-    } else {
-        return null;
-    }
-}
-
-/**
- * @param {BinOpExpr | Value} expr
  * @returns {string | number | null}
  */
 function expr_extract_value(expr) {

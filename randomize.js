@@ -30,7 +30,7 @@ function random_binop(max_depth) {
     for (let i = 0; i < 5; i++) {
         let bin_op = generate_binop(max_depth);
 
-        if (avoid_ub() && bin_op.has_ub()) {
+        if (avoid_ub() && bin_op.check_ub()) {
             continue;
         } else {
             return bin_op;

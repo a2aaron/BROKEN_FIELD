@@ -3,10 +3,17 @@ import { BinOp, TokenStream, Value } from "./parse.js";
 /**
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
+ * @typedef {BinOpToken | UnaryOpToken} OpToken
+ * @typedef {"(" | ")" | OpToken | Value} Token
  */
 
 /** @type {BinOpToken[]} */
 const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
+/** @type {UnaryOpToken[]} */
+const UNARY_OPERATORS = ["+", "-", "~", "!"];
+/** @type {OpToken[]} */
+// @ts-ignore
+const OPERATORS = BINARY_OPERATORS.concat(UNARY_OPERATORS);
 export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 
 /**
@@ -18,6 +25,7 @@ export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export function tokenize(bytebeat) {
     let i = 0;
 
+    /** @type {Token[]} */
     let tokens = [];
     outer:
     while (i < bytebeat.length) {
@@ -37,9 +45,9 @@ export function tokenize(bytebeat) {
             continue;
         }
 
-        for (const op of BINARY_OPERATORS) {
+        for (const op of OPERATORS) {
             if (remaining.startsWith(op)) {
-                tokens.push(new BinOp(op));
+                tokens.push(op);
                 i += op.length;
                 continue outer;
             }
@@ -63,6 +71,25 @@ export function tokenize(bytebeat) {
         return new Error(`Unrecognized token: ${this_char}`);
     }
     return new TokenStream(tokens);
+}
+
+/**
+ * @param {Token | null} token
+ * @returns {token is BinOpToken}
+ */
+export function is_bin_op_token(token) {
+    // @ts-ignore
+    return BINARY_OPERATORS.includes(token);
+}
+
+
+/**
+ * @param {Token | null} token
+ * @returns {token is UnaryOpToken}
+ */
+export function is_un_op_token(token) {
+    // @ts-ignore
+    return UNARY_OPERATORS.includes(token);
 }
 
 

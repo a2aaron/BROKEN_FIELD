@@ -1,8 +1,12 @@
-import { BinOpExpr, find_ub } from "./parse.js";
+import { BinOpExpr } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
+
+/**
+ * @typedef {import("./parse.js").UBInfo} UBInfo
+ */
 
 // HTML elements we wish to attach event handlers to.
 // HTML elements we wish to reference
@@ -180,9 +184,13 @@ function set_bytebeat(bytebeat) {
       ub_display.innerText = "";
    }
 
+   if (BYTEBEAT_PROGRAM_INFO?.parse_info.error) {
+      console.log(BYTEBEAT_PROGRAM_INFO?.parse_info.error);
+   }
+
    /**
     * Turn a UBInfo into a useful user message.
-    * @param {import("./parse.js").UBInfo} ub_info
+    * @param {UBInfo} ub_info
     */
    function get_ub_message(ub_info) {
       let { type, location } = ub_info;
@@ -314,7 +322,7 @@ function main() {
 
    simplify_button.addEventListener("click", () => {
       let parsed = BYTEBEAT_PROGRAM_INFO?.parse_info.expr;
-      if (parsed instanceof BinOpExpr) {
+      if (parsed) {
          let simple = parsed.simplify();
          if (bytebeat_textarea.value != simple.toString()) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
