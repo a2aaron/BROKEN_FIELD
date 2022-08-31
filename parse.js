@@ -69,7 +69,6 @@ export class UnaryOp {
      * @returns {T}
      */
     eval(a) {
-        console.log(a);
         // TODO: how to make this typecheck?
         switch (this.value) {
             // @ts-ignore
@@ -194,12 +193,15 @@ export class UnaryOpExpr {
 
     /** @returns {string} */
     toString() {
-        // TODO: Don't include parenthsis when possible
-        return `${this.op.toString()}(${this.value.toString()})`;
+        if (needs_parenthesis(this, this.value, "right")) {
+            return `${this.op.toString()}(${this.value.toString()})`;
+        } else {
+            return `${this.op.toString()}${this.value.toString()}`;
+        }
     }
 
     /**
-     * @returns {UnaryOpExpr | Value}
+     * @returns {Expr}
      */
     simplify() {
         let value = this.value.simplify();
@@ -208,6 +210,20 @@ export class UnaryOpExpr {
                 return new Value(this.op.eval(value.value));
             }
         }
+
+        if (this.op.value == "+") {
+            return value.simplify();
+        }
+
+        if (value instanceof UnaryOpExpr) {
+            let both_minus = this.op.value == "-" && value.op.value == "-";
+            let both_tilde = this.op.value == "~" && value.op.value == "~";
+            let both_bang = this.op.value == "!" && value.op.value == "!";
+            if (both_minus || both_tilde || both_bang) {
+                return value.value.simplify();
+            }
+        }
+
         return this;
     }
 
@@ -239,49 +255,6 @@ export class BinOpExpr {
         }
 
         return `${left} ${this.op.toString()} ${right}`;
-
-        /**
-         * @param {BinOpExpr} parent
-         * @param {Expr} child
-         * @param {"left" | right} which_child
-         */
-        function needs_parenthesis(parent, child, which_child) {
-            if (child instanceof Value) {
-                return false;
-            }
-
-            // If the child binds more loosely than the parent, but we need the child to bind
-            // stronger, use parens
-            if (parent.op.precedence() < child.op.precedence()) {
-                return true;
-            } else if (parent.op.precedence() == child.op.precedence()) {
-                // If the parent and child bind equally, then we need to check that the unparenthesized
-                // expression would be the same as the intended expression.
-                // Most operators are [lexically] left-associative. (That means "a op1 b op2 c" is equal to "(a op1 b) op2 c")
-                // These comments will assume left-associativity, which you must reverse if the operator
-                // is actually right-associative.
-                // In order to not have the parenthesis we need that "a op1 b op2 c" would equal the intended expression.
-
-                // If the intended expression is (a op1 b) op2 c (that is to say, we are considering the parent the left child), 
-                // then we do not need the parenthesis, since the expression already parenthesizes how we intend.
-                if (which_child == parent.op.lexicial_associativity()) {
-                    return false;
-                }
-                // Otherwise, we are considering the right child, and need to check that (a op1 b) op2 c would equal a op1 (b op2 c)
-                // (since a op1 b op2 c = (a op1 b) op2 c, if we have the above condition, then we can remove the parenthesis)
-                // The equality condition holds only when the two ops are the same operator and the op is mathematically
-                // associative (that is, we need "op1 = op2" and "(a op b) op c == a op (b op c)").
-                // We need the mathamethical associativity requirement, because something like / would not work
-                // (a / b) / c != a / (b / c)
-
-                // We also need the same-operator requirement, because of the example below:
-                // For example, a * b * c  = (a * b) * c  = a * (b * c)
-                // however,     a + b * c != (a + b) * c != (a + b) * c, even if + had the same precedence as *.
-                return !(parent.op.is_mathematically_associative() && parent.op.value == child.op.value);
-            } else {
-                return false;
-            }
-        }
     }
 
     /** @returns {Expr} */
@@ -576,6 +549,61 @@ export class TokenStream {
         } else {
             throw new Error(`Expected ${token}, got ${this.stream[this.index]}`);
         }
+    }
+}
+
+
+/**
+ * @param {BinOpExpr | UnaryOpExpr} parent
+ * @param {Expr} child
+ * @param {"left" | "right"} which_child
+ */
+function needs_parenthesis(parent, child, which_child) {
+    if (child instanceof Value) {
+        return false;
+    }
+
+    // If the child binds more loosely than the parent, but we need the child to bind
+    // stronger, use parens
+    if (parent.op.precedence() < child.op.precedence()) {
+        return true;
+    } else if (parent.op.precedence() == child.op.precedence()) {
+        // If the parent is a UnaryOp, we only need parenthsis to differentiate ++x from +(+x) and -- from -(-x).
+        if (parent instanceof UnaryOpExpr) {
+            if (child instanceof UnaryOpExpr) {
+                let plus_plus = parent.op.value == "+" && child.op.value == "+";
+                let minus_minus = parent.op.value == "-" && child.op.value == "-";
+                return !plus_plus && !minus_minus;
+            }
+            return false;
+        }
+
+        // If the parent and child bind equally, then we need to check that the unparenthesized
+        // expression would be the same as the intended expression.
+        // Most operators are [lexically] left-associative. (That means "a op1 b op2 c" is equal to "(a op1 b) op2 c")
+        // These comments will assume left-associativity, which you must reverse if the operator
+        // is actually right-associative.
+        // In order to not have the parenthesis we need that "a op1 b op2 c" would equal the intended expression.
+
+        // If the intended expression is (a op1 b) op2 c (that is to say, we are considering the parent the left child), 
+        // then we do not need the parenthesis, since the expression already parenthesizes how we intend.
+        if (which_child == parent.op.lexicial_associativity()) {
+            return false;
+        }
+
+        // Otherwise, we are considering the right child, and need to check that (a op1 b) op2 c would equal a op1 (b op2 c)
+        // (since a op1 b op2 c = (a op1 b) op2 c, if we have the above condition, then we can remove the parenthesis)
+        // The equality condition holds only when the two ops are the same operator and the op is mathematically
+        // associative (that is, we need "op1 = op2" and "(a op b) op c == a op (b op c)").
+        // We need the mathamethical associativity requirement, because something like / would not work
+        // (a / b) / c != a / (b / c)
+
+        // We also need the same-operator requirement, because of the example below:
+        // For example, a * b * c  = (a * b) * c  = a * (b * c)
+        // however,     a + b * c != (a + b) * c != (a + b) * c, even if + had the same precedence as *.
+        return !(parent.op.is_mathematically_associative() && parent.op.value == child.op.value);
+    } else {
+        return false;
     }
 }
 
