@@ -190,8 +190,11 @@ function set_bytebeat(bytebeat) {
       switch (type) {
          case "divide by zero":
             ub_reason = "A divide by zero occurs here. (The denominator of your program always evaluates to zero)"
+            break;
          case "overwide left shift":
-      }     ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
+            ub_reason = "A left shift occurs here where the value is shifted left by more than 32 bits"
+            break;
+      }
       return `Warning: Your program has undefined behavior!
 This might mean that your program might display differently or not work on other computers.
    
