@@ -43,7 +43,7 @@ export class Program {
 }
 
 export class BinOp {
-    /** @param {string} value */
+    /** @param {import("./tokenize.js").BinOpToken} value */
     constructor(value) {
         this.value = value;
     }
@@ -70,7 +70,6 @@ export class BinOp {
             case "|": return a | b;
             case ">>": return a >> b;
             case "<<": return a << b;
-            default: throw new Error(`Unable to eval "${a} ${this.value} ${b}"`);
         }
     }
 
@@ -90,26 +89,11 @@ export class BinOp {
             case "&": return 9;
             case "^": return 10;
             case "|": return 11;
-            default: throw new Error(`Unknown precedence for ${this.value}"`);
         }
     }
 
     /** @return {"left" | "right"} */
-    lexicial_associativity() {
-        switch (this.value) {
-            case "+":
-            case "-":
-            case "*":
-            case "/":
-            case "%":
-            case "&":
-            case "^":
-            case "|":
-            case ">>":
-            case "<<": return "left";
-            default: throw new Error(`Unknown lexical associativity for ${this.value}"`);
-        }
-    }
+    lexicial_associativity() { return "left"; }
 
     is_mathematically_associative() {
         switch (this.value) {
@@ -123,7 +107,6 @@ export class BinOp {
             case "-":
             case ">>":
             case "<<": return false;
-            default: throw new Error(`Unknown mathematical associativity for ${this.value}"`);
         }
     }
 }

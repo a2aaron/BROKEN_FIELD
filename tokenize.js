@@ -1,5 +1,11 @@
 import { BinOp, TokenStream, Value } from "./parse.js";
 
+/**
+ * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
+ * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
+ */
+
+/** @type {BinOpToken[]} */
 const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
 export const BUILTIN_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 

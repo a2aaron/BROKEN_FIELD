@@ -4,6 +4,7 @@ import { getTypedElementById, isNumber } from "./util.js";
 
 /** @returns {BinOp} */
 function random_op() {
+    /** @type {import("./tokenize.js").BinOpToken} */
     let op = choose(
         "+", "-", "*", "/",
         "%", "<<", ">>",
