@@ -1,5 +1,5 @@
 [package]
-name = "BROKEN_FIELD-url-shortner"
+name = "broken_field_url_shortner"
 description = "URL shortner for the BROKEN_FIELD webapp."
 version = "0.1.0"
 edition = "2021"
@@ -8,5 +8,6 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sqlx = { version = "0.6.1", features = ["sqlite"] }
+sqlx = { version = "0.6.1", features = ["sqlite", "runtime-tokio-rustls"] }
+tokio = { version = "1.20.1", features = ["full"] }
 warp = "0.3.2"
