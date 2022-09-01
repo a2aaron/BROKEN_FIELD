@@ -1,6 +1,12 @@
+use std::convert::Infallible;
+
 use serde::Deserialize;
 use sqlx::{pool::PoolConnection, Sqlite, SqlitePool};
-use warp::{hyper::Uri, reject::Reject, Filter, Rejection};
+use warp::{
+    hyper::{StatusCode, Uri},
+    reject::Reject,
+    Filter, Rejection, Reply,
+};
 
 struct CouldntConnect(sqlx::Error);
 impl std::fmt::Debug for CouldntConnect {
@@ -36,6 +42,7 @@ async fn main() -> Result<(), sqlx::Error> {
     println!("nya");
     let home_page_redirect = warp::filters::method::get()
         .and(warp::path("BROKEN_FIELD"))
+        .and(warp::path::end())
         .map(|| {
             warp::redirect::temporary(Uri::from_static("https://a2aaron.github.io/BROKEN_FIELD/"))
         });
@@ -43,22 +50,28 @@ async fn main() -> Result<(), sqlx::Error> {
     let redirect = warp::filters::method::get()
         .and(warp::path("BROKEN_FIELD"))
         .and(warp::path::param())
+        .and(warp::path::end())
         .and(with_db(pool.clone()))
         .and_then(|id: String, pool: SqlitePool| async move {
-            let conn = pool
+            let mut conn = pool
                 .acquire()
                 .await
                 .map_err(|err| warp::reject::custom(CouldntConnect(err)))?;
 
-            let query = id_to_query_params(conn, id);
-            let path = format!("https://a2aaron.github.io/BROKEN_FIELD/?{}", query);
-            let uri = path.parse::<Uri>().unwrap();
-            // Note: this should be a permenant redirect in the actual live site.
-            Result::<_, Rejection>::Ok(warp::redirect::temporary(uri))
+            if let Some(query) = id_to_query_params(&id, &mut conn).await {
+                let path = format!("https://a2aaron.github.io/BROKEN_FIELD/?{}", query);
+                let uri = path.parse::<Uri>().unwrap();
+                // Note: this should be a permenant redirect in the actual live site.
+                Result::<_, Rejection>::Ok(warp::redirect::temporary(uri))
+            } else {
+                println!("Not found");
+                Err(warp::reject::not_found())
+            }
         });
 
     let create = warp::filters::method::post()
         .and(warp::path("BROKEN_FIELD"))
+        .and(warp::path::end())
         .and(warp::filters::body::json())
         .and(with_db(pool.clone()))
         .and_then(|json: URLParams, pool: SqlitePool| async move {
@@ -69,36 +82,77 @@ async fn main() -> Result<(), sqlx::Error> {
 
             let id = new_id();
 
-            sqlx::query("INSERT INTO shortened_url VALUES (?, ?)")
+            sqlx::query("INSERT OR IGNORE INTO shortened_url VALUES (?, ?)")
                 .bind(&id)
                 .bind(&json.url)
                 .execute(&mut conn)
                 .await
                 .map_err(|err| warp::reject::custom(QueryError(err)))?;
 
-            Result::<_, Rejection>::Ok(warp::reply::json(&id))
+            Result::<_, Rejection>::Ok(warp::reply::json(
+                &query_params_to_id(&json.url, &mut conn).await,
+            ))
         });
 
-    warp::serve(home_page_redirect.or(redirect).or(create))
-        .run(([127, 0, 0, 1], 3030))
-        .await;
+    let routes = create.or(redirect.or(home_page_redirect).recover(handle_rejection));
+
+    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 
     Ok(())
 }
 
-fn new_id() -> String {
-    return random_string::generate(
-        12,
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-    );
+async fn query_params_to_id(url: &str, conn: &mut PoolConnection<Sqlite>) -> String {
+    let (id,) = sqlx::query_as("SELECT short_url FROM shortened_url WHERE long_url = ?")
+        .bind(&url)
+        .fetch_one(conn)
+        .await
+        .unwrap();
+    return id;
 }
 
-fn id_to_query_params(conn: PoolConnection<Sqlite>, id: String) -> String {
-    return "bytebeat=dA%3D%3D&color=FFFFFF".to_string();
+fn new_id() -> String {
+    random_string::generate(
+        12,
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    )
+}
+
+async fn id_to_query_params(id: &str, conn: &mut PoolConnection<Sqlite>) -> Option<String> {
+    sqlx::query_as("SELECT long_url FROM shortened_url WHERE short_url = ?")
+        .bind(&id)
+        .fetch_optional(conn)
+        .await
+        .unwrap()
+        .map(|(x,)| x)
 }
 
 fn with_db(
     db_pool: SqlitePool,
 ) -> impl Filter<Extract = (SqlitePool,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || db_pool.clone())
+}
+
+// This function receives a `Rejection` and tries to return a custom
+// value, otherwise simply passes the rejection along.
+async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
+    println!("{:?}", err);
+    let code;
+    let message;
+
+    if err.is_not_found() {
+        code = StatusCode::NOT_FOUND;
+        message = "The shortened URL could not be found.";
+    } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+        // We can handle a specific error, here METHOD_NOT_ALLOWED,
+        // and render it however we want
+        code = StatusCode::METHOD_NOT_ALLOWED;
+        message = "The method is not allowed.";
+    } else {
+        // We should have expected this... Just log and say its a 500
+        eprintln!("unhandled rejection: {:?}", err);
+        code = StatusCode::INTERNAL_SERVER_ERROR;
+        message = "Some other error occured.";
+    }
+
+    Ok(warp::reply::with_status(message, code))
 }
