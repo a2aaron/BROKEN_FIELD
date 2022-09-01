@@ -32,7 +32,7 @@ ${variable_text}
     int value = ${core};
     value = value % int(wrap_value);
     value = value < 0 ? value + int(wrap_value) : value;
-    float value_out = float(value) / wrap_value;
+    float value_out = float(value) / (wrap_value - 1.0);
     fragColor = vec4(value_out * color, 1.0);
 }`;
 }
