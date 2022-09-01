@@ -62,6 +62,8 @@ dependencies = [
 name = "broken_field_url_shortner"
 version = "0.1.0"
 dependencies = [
+ "random-string",
+ "serde",
  "sqlx",
  "tokio",
  "warp",
@@ -841,6 +843,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "random-string"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf4e63111ec5292d8af9c220f06fe3bb87991cc78b6f1f7e291d1ae6b8a60817"
+dependencies = [
+ "fastrand",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -944,6 +955,20 @@ name = "serde"
 version = "1.0.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f747710de3dcd43b88c9168773254e809d8ddbdf9653b84e2554ab219f17860"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.144"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94ed3a816fb1d101812f83e789f888322c34e291f894f19590dc310963e87a00"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "serde_json"
