@@ -1,0 +1,12 @@
+[package]
+name = "BROKEN_FIELD-url-shortner"
+description = "URL shortner for the BROKEN_FIELD webapp."
+version = "0.1.0"
+edition = "2021"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sqlx = { version = "0.6.1", features = ["sqlite"] }
+warp = "0.3.2"
