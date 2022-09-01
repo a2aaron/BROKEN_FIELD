@@ -189,9 +189,7 @@ function set_bytebeat(bytebeat) {
       ub_display.innerText = "";
    }
 
-   if (PARSE_INFO.error) {
-      console.log(PARSE_INFO.error);
-   }
+   // render_error_messages(PARSE_INFO.error, `${PARSE_INFO.assignments}\n${PARSE_INFO.expr}`);
 
    /**
     * Turn a UBInfo into a useful user message.

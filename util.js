@@ -2,13 +2,17 @@ let ERROR_ELEMENT = document.getElementById("error-msg");
 
 /**
  * Show the error messages associated with the given template.
- * @param {...Error} errors
+ * @param {...(Error | string)} errors
  */
 export function render_error_messages(...errors) {
     let message = "";
 
     for (let error of errors) {
-        message += recursively_to_string(error);
+        if (error instanceof Error) {
+            message += recursively_to_string(error);
+        } else {
+            message += error;
+        }
         message += "\n\n";
     }
 
