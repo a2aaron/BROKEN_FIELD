@@ -25,22 +25,24 @@ const MAX_PRECEDENCE = 12;
 export class Program {
     /** @param {string} bytebeat */
     constructor(bytebeat) {
-        let expr = try_parse(bytebeat);
-        if (expr instanceof Error) {
-            this.error = expr;
+        let result = try_parse(bytebeat);
+        if (result instanceof Error) {
+            this.error = result;
+            this.assignments = null;
             this.expr = null;
             this.ub_info = null;
             return;
         }
 
         this.error = null;
-        this.expr = expr;
-        this.ub_info = expr.check_ub();
+        this.assignments = result[0];
+        this.expr = result[1];
+        this.ub_info = this.expr.check_ub();
 
         /**
          * Try to parse a string into an expression.
          * @param {string} bytebeat
-         * @returns {Expr | Error}
+         * @returns {[Assign[], Expr] | Error}
          */
         function try_parse(bytebeat) {
             let tokens = tokenize(bytebeat);
@@ -50,13 +52,23 @@ export class Program {
 
             let token_stream = new TokenStream(tokens);
 
-            let expr = token_stream.parse_expr();
+            let assignments = [];
+            while (true) {
+                const assign = token_stream.parse_assign();
+                if (assign instanceof Error) {
+                    break;
+                } else {
+                    assignments.push(assign);
+                }
+            }
+
+            const expr = token_stream.parse_expr();
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                console.log("Warning: Tokenstream not empty after parse");
+                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}`);
             }
-            return expr;
+            return [assignments, expr];
         }
     }
 }
@@ -499,6 +511,14 @@ class Assign {
         this.ident = ident;
         this.expr = expr;
     }
+
+    toString() {
+        if (this.explicit_type) {
+            return `${this.explicit_type} ${this.ident.toString()} = ${this.expr.toString()};`;
+        } else {
+            return `${this.ident.toString()} = ${this.expr.toString()};`;
+        }
+    }
 }
 
 /**
@@ -533,7 +553,7 @@ class TokenStream {
     try_parse_type() {
         const next_token = this.peek();
         if (is_type_token(next_token)) {
-            this.consume(next_token);
+            this.consume_one();
             return next_token;
         } else {
             return null;
@@ -543,7 +563,7 @@ class TokenStream {
     parse_identifier() {
         const next_token = this.peek();
         if (next_token instanceof Identifier) {
-            this.consume(next_token);
+            this.consume_one();
             return next_token;
         } else {
             return new Error(`Expected an identifier, got ${next_token}`);
@@ -553,10 +573,10 @@ class TokenStream {
     parse_value() {
         const next_token = this.peek();
         if (is_literal(next_token)) {
-            this.consume(next_token);
+            this.consume_one();
             return new Value(next_token);
         } else if (next_token instanceof Identifier) {
-            this.consume(next_token);
+            this.consume_one();
             return new Value(next_token);
         } else {
             return new Error(`Expected literal or identifier, got ${next_token}`);
@@ -567,7 +587,7 @@ class TokenStream {
     parse_un_op() {
         const next_token = this.peek();
         if (is_un_op_token(next_token)) {
-            this.consume(next_token);
+            this.consume_one();
             return new UnaryOp(next_token);
         } else {
             return new Error(`Expected a BinOpToken, got ${next_token}`);
@@ -577,7 +597,7 @@ class TokenStream {
     parse_bin_op() {
         const next_token = this.peek();
         if (is_bin_op_token(next_token)) {
-            this.consume(next_token);
+            this.consume_one();
             return new BinOp(next_token);
         } else {
             return new Error(`Expected a BinOpToken, got ${next_token}`);
@@ -589,20 +609,34 @@ class TokenStream {
      * @returns {Term | Error} 
      */
     parse_term() {
-        const next_token = this.peek();
+        let token_stream = this.copy();
+
+        const next_token = token_stream.peek();
         if (next_token == "(") {
-            this.consume("(");
-            const expr = this.parse_expr();
-            this.consume(")");
+            token_stream.consume_one();
+            const expr = token_stream.parse_expr();
+            const result = token_stream.try_consume(")");
+
+            if (result instanceof Error) { return result; }
+            this.commit(token_stream);
+
             return expr;
         } else if (is_un_op_token(next_token)) {
-            const op = this.parse_un_op();
+            const op = token_stream.parse_un_op();
+            const term = token_stream.parse_term();
+
             if (op instanceof Error) { return op; }
-            const term = this.parse_term();
             if (term instanceof Error) { return term; }
+            this.commit(token_stream);
+
             return new UnaryOpExpr(term, op);
         } else {
-            return this.parse_value();
+            let value = token_stream.parse_value();
+
+            if (value instanceof Error) { return value; }
+            this.commit(token_stream);
+
+            return value;
         }
     }
 
@@ -611,29 +645,34 @@ class TokenStream {
      * @returns {Expr | Error}
      */
     parse_expr() {
-        const first_term = this.parse_term();
+        let stream = this.copy();
+
+        const first_term = stream.parse_term();
         if (first_term instanceof Error) { return first_term; }
 
         let terms = [first_term];
         let ops = [];
         while (true) {
-            if (!is_bin_op_token(this.peek())) {
+            if (!is_bin_op_token(stream.peek())) {
                 break;
             }
-            const op = this.parse_bin_op();
+            const op = stream.parse_bin_op();
+            const term = stream.parse_term();
+
             if (op instanceof Error) { return op; }
-            const term = this.parse_term();
             if (term instanceof Error) { return term; }
+
             terms.push(term);
             ops.push(op);
         }
 
         console.assert(terms.length == ops.length + 1);
 
-        if (terms.length == 1 && ops.length == 0) {
-            return terms[0];
-        }
-        return term_stream(terms, ops);
+        const out_term = term_stream(terms, ops);
+        if (out_term instanceof Error) { return out_term; }
+
+        this.commit(stream);
+        return out_term;
 
         /**
          * Turn a stream of terms into a single Term. The terms and ops are interleaved 
@@ -688,18 +727,31 @@ class TokenStream {
         }
     }
 
+    /** 
+     * Consumes tokens from the TokenStream and constructs an Assign
+     * @returns {Assign | Error}
+     */
     parse_assign() {
-        let type = this.try_parse_type();
-        let identifier = this.parse_identifier();
+        let stream = this.copy();
+
+        const type = stream.try_parse_type();
+        const identifier = stream.parse_identifier();
+        const result_eq = stream.try_consume("=");
+        const expr = stream.parse_expr();
+        const result_semi = stream.try_consume(";");
+
         if (identifier instanceof Error) { return identifier; }
-        this.consume("=");
-        let expr = this.parse_expr();
+        if (result_eq instanceof Error) { return result_eq; }
         if (expr instanceof Error) { return expr; }
-        this.consume(";");
+        if (result_semi instanceof Error) { return result_semi; }
+
+        this.commit(stream);
         return new Assign(type, identifier, expr);
     }
 
-    /** @return {Token | null} */
+    /** 
+     * Return the next Token without consuming it.
+     * @return {Token | null} */
     peek() {
         if (this.index < this.stream.length) {
             return this.stream[this.index];
@@ -708,16 +760,49 @@ class TokenStream {
         }
     }
 
-    /** @param {Token} token */
-    consume(token) {
-        if (this.stream[this.index] == token) {
+    /**
+     * Advance the TokenStream by one token. if the TokenStream is empty, throws an error. This 
+     * is intended for when you know that you wish to consume the next token.
+     */
+    consume_one() {
+        if (this.index < this.stream.length) {
             this.index += 1;
         } else {
-            throw new Error(`Expected ${token}, got ${this.stream[this.index]}`);
+            throw new Error(`Cannot consume next token, current: ${this.index}, length: ${this.stream.length}`);
         }
     }
-}
 
+    /** 
+     * Try to consume a Token. If the token does not match the passed token, an Error is returned.
+     * @param {Token} token */
+    try_consume(token) {
+        if (this.stream[this.index] == token) {
+            this.index += 1;
+            return null;
+        } else {
+            return new Error(`Expected ${token}, got ${this.stream[this.index]}`);
+        }
+    }
+
+    /**
+     * Create a copy of this TokenStream. The other TokenStream is advanced to the point of this
+     * TokenStream.
+     * @returns {TokenStream}
+     */
+    copy() {
+        let token_stream = new TokenStream(this.stream);
+        token_stream.index = this.index;
+        return token_stream;
+    }
+
+    /**
+     * Commit the other TokenStream to this TokenStream. This should be called whenever parsing succeeds
+     * on the other TokenStream
+     * @param {TokenStream} other */
+    commit(other) {
+        this.index = other.index;
+    }
+}
 
 /**
  * @param {BinOpExpr | UnaryOpExpr} parent
