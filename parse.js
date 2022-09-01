@@ -48,19 +48,15 @@ export class Program {
                 return tokens;
             }
 
-            try {
-                let expr = tokens.parse_expr();
-                if (tokens.peek() != null) {
-                    console.log("Warning: Tokenstream not empty after parse");
-                }
-                return expr;
-            } catch (err) {
-                if (err instanceof Error) {
-                    return err;
-                } else {
-                    throw err;
-                }
+            let token_stream = new TokenStream(tokens);
+
+            let expr = token_stream.parse_expr();
+            if (expr instanceof Error) { return expr; }
+
+            if (token_stream.peek() != null) {
+                console.log("Warning: Tokenstream not empty after parse");
             }
+            return expr;
         }
     }
 }
@@ -524,7 +520,7 @@ class Assign {
  * @typedef {Value | BinOpExpr | UnaryOpExpr} Expr
  * 
  */
-export class TokenStream {
+class TokenStream {
     /**
      * @param {Token[]} stream
      */
@@ -550,7 +546,7 @@ export class TokenStream {
             this.consume(next_token);
             return next_token;
         } else {
-            throw new Error(`Expected an identifier, got ${next_token}`);
+            return new Error(`Expected an identifier, got ${next_token}`);
         }
     }
 
@@ -563,7 +559,7 @@ export class TokenStream {
             this.consume(next_token);
             return new Value(next_token);
         } else {
-            throw new Error(`Expected literal or identifier, got ${next_token}`);
+            return new Error(`Expected literal or identifier, got ${next_token}`);
         }
 
     }
@@ -574,7 +570,7 @@ export class TokenStream {
             this.consume(next_token);
             return new UnaryOp(next_token);
         } else {
-            throw new Error(`Expected a BinOpToken, got ${next_token}`);
+            return new Error(`Expected a BinOpToken, got ${next_token}`);
         }
     }
 
@@ -584,14 +580,13 @@ export class TokenStream {
             this.consume(next_token);
             return new BinOp(next_token);
         } else {
-            throw new Error(`Expected a BinOpToken, got ${next_token}`);
+            return new Error(`Expected a BinOpToken, got ${next_token}`);
         }
     }
 
     /** 
      * Consumes tokens from the TokenStream and constructs a Term
-     * @returns {Term} 
-     * @throws {Error} throws if the TokenStream is malformed
+     * @returns {Term | Error} 
      */
     parse_term() {
         const next_token = this.peek();
@@ -602,7 +597,9 @@ export class TokenStream {
             return expr;
         } else if (is_un_op_token(next_token)) {
             const op = this.parse_un_op();
-            const term = this.parse_term()
+            if (op instanceof Error) { return op; }
+            const term = this.parse_term();
+            if (term instanceof Error) { return term; }
             return new UnaryOpExpr(term, op);
         } else {
             return this.parse_value();
@@ -611,20 +608,22 @@ export class TokenStream {
 
     /** 
      * Consumes tokens from the TokenStream and constructs an Expr
-     * @returns {Expr}
-     * @throws {Error} throws if the TokenStream is malformed
+     * @returns {Expr | Error}
      */
     parse_expr() {
-        let terms = [];
-        let ops = [];
+        const first_term = this.parse_term();
+        if (first_term instanceof Error) { return first_term; }
 
-        terms.push(this.parse_term());
+        let terms = [first_term];
+        let ops = [];
         while (true) {
             if (!is_bin_op_token(this.peek())) {
                 break;
             }
             const op = this.parse_bin_op();
+            if (op instanceof Error) { return op; }
             const term = this.parse_term();
+            if (term instanceof Error) { return term; }
             terms.push(term);
             ops.push(op);
         }
@@ -643,10 +642,10 @@ export class TokenStream {
          * ops  :   0   1   2   3   4
          * @param {Term[]} terms
          * @param {BinOp[]} ops
-         * @return {Term} The sequence of Terms and Ops transformed a single Term containing
+         * @return {Term | Error} The sequence of Terms and Ops transformed a single Term containing
          * all of the Terms as children. The return value is a Value is there was only one Term in
-         * the input array. Otherweise the return value is a BinOp.
-         * @throws {Error} Throws if the term stream could not be parsed into a term.
+         * the input array. Otherweise the return value is a BinOp. Returns an Error if the term
+         * stream could not be parsed into a term.
          */
         function term_stream(terms, ops) {
             if (ops.length + 1 != terms.length) {
@@ -685,15 +684,17 @@ export class TokenStream {
                 }
             }
 
-            throw new Error(`Did not parse all of term stream: ${terms}, ${ops}`);
+            return new Error(`Did not parse all of term stream: ${terms}, ${ops}`);
         }
     }
 
     parse_assign() {
         let type = this.try_parse_type();
         let identifier = this.parse_identifier();
+        if (identifier instanceof Error) { return identifier; }
         this.consume("=");
         let expr = this.parse_expr();
+        if (expr instanceof Error) { return expr; }
         this.consume(";");
         return new Assign(type, identifier, expr);
     }

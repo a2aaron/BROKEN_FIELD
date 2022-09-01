@@ -1,5 +1,3 @@
-import { BinOp, TokenStream, Value } from "./parse.js";
-
 /**
  * @typedef {number | boolean} Literal
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
@@ -49,7 +47,7 @@ export class Identifier {
 * Tokensize the bytebeat into a TokenStream. A token is a Value, Op, an open paren,
 * or a close paren.
 * @param {string} bytebeat the bytebeat source to tokenize
-* @returns {TokenStream | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
+* @returns {Token[] | Error} the tokenized bytebeat, or an error if the bytebeat could not be tokenized
 */
 export function tokenize(bytebeat) {
     let i = 0;
@@ -113,7 +111,7 @@ export function tokenize(bytebeat) {
         }
         return new Error(`Unrecognized token: ${this_char}`);
     }
-    return new TokenStream(tokens);
+    return tokens;
 }
 
 /**
