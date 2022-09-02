@@ -14,7 +14,8 @@ export function get_fragment_shader_source(bytebeat) {
     }
 
     return `#version 300 es
-precision mediump float;
+precision highp float;
+precision highp int;
 
 uniform float wrap_value;
 uniform int t, mx, my, kx, ky;
