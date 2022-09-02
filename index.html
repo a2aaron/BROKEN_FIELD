@@ -39,7 +39,6 @@
           <input type="number" id="time-start" placeholder="start t" , value="0" , class="small-text-input">
           -
           <input type="number" id="time-end" placeholder="end t" , value="" , class="small-text-input">
-          </select>
         </ui-element>
         <ui-element>
           <label for="time-scale">Time Scale:</label>
@@ -66,6 +65,19 @@
         </details>
         <details>
           <summary>Advanced Settings</summary>
+          <h3>Shader Options</h3>
+          <ul>
+            <li>
+              <ui-element>
+                <label for="shader-precision-select">Integer and Float Precision:</label>
+                <select id="shader-precision-select">
+                  <option value="highp">High Precision</option>
+                  <option value="mediump">Medium Precision</option>
+                  <option value="lowp">Low Precision</option>
+                </select>
+              </ui-element>
+            </li>
+          </ul>
           <h3>Randomize/Mutate Generation Options</h3>
           <ul>
             <li>

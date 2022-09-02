@@ -4,8 +4,10 @@ import { unwrap } from "./util.js";
 /**
  * Get the fragment shader source code.
  * @param {string} bytebeat
+ * @param {Precision} precision
+ * @typedef {"lowp" | "mediump" | "highp"} Precision
  */
-export function get_fragment_shader_source(bytebeat) {
+export function get_fragment_shader_source(bytebeat, precision) {
     let [core, additional_variables] = parse_program(bytebeat);
 
     let variable_text = "";
@@ -14,8 +16,8 @@ export function get_fragment_shader_source(bytebeat) {
     }
 
     return `#version 300 es
-precision highp float;
-precision highp int;
+precision ${precision} float;
+precision ${precision} int;
 
 uniform float wrap_value;
 uniform int t, mx, my, kx, ky;
@@ -257,13 +259,14 @@ function render(gl, positionAttributeIndex) {
  * locations.
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat to render
+ * @param {Precision} precision
  * @return {typeof programInfo}
  * @throws {Error} Throws is the bytebeat cannot be compiled.
  * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
  */
-export function compileBytebeat(gl, bytebeat) {
+export function compileBytebeat(gl, bytebeat, precision) {
     const vsSource = get_vertex_shader_source();
-    const fsSource = get_fragment_shader_source(bytebeat);
+    const fsSource = get_fragment_shader_source(bytebeat, precision);
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
 

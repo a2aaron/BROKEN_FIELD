@@ -24,6 +24,8 @@ const time_end_input = getTypedElementById(HTMLInputElement, "time-end");
 const canvas_size_x_input = getTypedElementById(HTMLInputElement, "canvas-size-x");
 const canvas_size_y_input = getTypedElementById(HTMLInputElement, "canvas-size-y");
 
+const precision_selection = getTypedElementById(HTMLSelectElement, "shader-precision-select");
+
 const restart_button = getTypedElementById(HTMLButtonElement, "restart-btn");
 const randomize_button = getTypedElementById(HTMLButtonElement, "randomize-btn");
 const mutate_button = getTypedElementById(HTMLButtonElement, "mutate-btn");
@@ -119,6 +121,7 @@ function get_ui_parameters() {
       height: parseInt(canvas_size_y_input.value),
       time_start: parseInt(time_start_input.value),
       time_end: time_end_input.value != "" ? parseInt(time_end_input.value) : null,
+      precision: /** @type {import("./shader.js").Precision} */ (precision_selection.value),
    };
    return parameters;
 }
@@ -139,6 +142,7 @@ function params_to_string(params) {
       height: params.height.toString(),
       time_start: params.time_start.toString(),
       time_end: params.time_end ? params.time_end.toString() : "",
+      precision: params.precision.toString(),
    }
    return stringy_params;
 }
@@ -156,6 +160,7 @@ function set_ui(params) {
    canvas_size_y_input.value = params.height;
    time_start_input.value = params.time_start;
    time_end_input.value = params.time_end;
+   precision_selection.value = params.precision;
 }
 
 /**
@@ -171,12 +176,12 @@ function set_bytebeat(bytebeat) {
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
 
    bytebeat_textarea.value = bytebeat;
-   shader_source_textarea.value = get_fragment_shader_source(bytebeat);
+   shader_source_textarea.value = get_fragment_shader_source(bytebeat, get_ui_parameters().precision);
 
    PARSE_INFO = new Program(bytebeat);
 
    try {
-      BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat);
+      BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
       LAST_FRAME_TIME = Date.now();
 
       render_error_messages();
@@ -292,6 +297,8 @@ function main() {
    color_input.addEventListener("input", () => render(gl));
    time_scale_input.addEventListener("input", () => render(gl));
 
+   precision_selection.addEventListener("input", () => set_bytebeat(bytebeat_textarea.value));
+
    canvas_size_x_input.addEventListener("input", () => {
       canvas.width = parseInt(canvas_size_x_input.value);
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -352,7 +359,8 @@ function main() {
       add_if_not_default("width", params.width, "1024");
       add_if_not_default("height", params.height, "1024");
       add_if_not_default("wrap_value", params.wrap_value, "256");
-      add_if_not_default("time_scale", params.time_scale.toFixed(2), "0.5");
+      add_if_not_default("time_scale", params.time_scale.toFixed(2), "0.50");
+      add_if_not_default("precision", params.precision, "highp");
 
       // in case im on localhost
       let href = window.location.href.includes("localhost") ? "https://a2aaron.github.io/BROKEN_FIELD/" : window.location.href;
@@ -467,6 +475,7 @@ function main() {
          time_start: params.get("start") ?? "0",
          time_end: params.get("end") ?? "",
          time_loop: params.get("loop") ?? "none",
+         precision: params.get("precision") ?? "highp",
       };
       set_ui(string_params);
    }
@@ -482,7 +491,7 @@ function main() {
    update_coord_display();
 
    // Set the fragment/vertex shader source displays at the bottom of the page.
-   getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}");
+   getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}", "highp");
    getTypedElementById(HTMLPreElement, "vertex-shader-source").innerText = get_vertex_shader_source();
 
    function animation_loop() {
