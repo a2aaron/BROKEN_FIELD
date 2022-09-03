@@ -176,25 +176,22 @@ function set_bytebeat(bytebeat) {
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
 
    bytebeat_textarea.value = bytebeat;
-   shader_source_textarea.value = get_fragment_shader_source(bytebeat, get_ui_parameters().precision);
 
-   PARSE_INFO = Program.parse(bytebeat);
-
-   try {
-      BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
-      LAST_FRAME_TIME = Date.now();
-
-      render_error_messages();
-      let ub_info = PARSE_INFO instanceof Program ? PARSE_INFO.ub_info : null;
-      ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
-   } catch (err) {
-      // @ts-ignore
-      render_error_messages(err);
+   const [programInfo, fsSource] = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
+   shader_source_textarea.value = fsSource;
+   if (programInfo instanceof Error) {
+      render_error_messages(programInfo);
       BYTEBEAT_PROGRAM_INFO = null;
       ub_display.innerText = "";
-   }
+   } else {
+      render_error_messages();
+      BYTEBEAT_PROGRAM_INFO = programInfo;
+      PARSE_INFO = Program.parse(bytebeat);
+      LAST_FRAME_TIME = Date.now();
 
-   // render_error_messages(PARSE_INFO.error, `${PARSE_INFO.assignments}\n${PARSE_INFO.expr}`);
+      let ub_info = PARSE_INFO instanceof Program ? PARSE_INFO.ub_info : null;
+      ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
+   }
 
    /**
     * Turn a UBInfo into a useful user message.
@@ -333,9 +330,9 @@ function main() {
    simplify_button.addEventListener("click", () => {
       if (PARSE_INFO instanceof Program) {
          let simple = PARSE_INFO.simplify().toString("pretty");
-         if (bytebeat_textarea.value != simple.toString("pretty")) {
+         if (bytebeat_textarea.value != simple) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
-            set_bytebeat(simple.toString("pretty"));
+            set_bytebeat(simple);
          }
       }
    });
@@ -496,7 +493,7 @@ function main() {
    update_coord_display();
 
    // Set the fragment/vertex shader source displays at the bottom of the page.
-   getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}", "highp");
+   getTypedElementById(HTMLPreElement, "fragment-shader-source").innerText = get_fragment_shader_source("${bytebeat}", [], "highp");
    getTypedElementById(HTMLPreElement, "vertex-shader-source").innerText = get_vertex_shader_source();
 
    function animation_loop() {

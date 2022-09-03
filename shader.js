@@ -3,15 +3,14 @@ import { unwrap } from "./util.js";
 
 /**
  * Get the fragment shader source code.
- * @param {string} bytebeat
+ * @param {string} core
+ * @param {string[]} additional_lines
  * @param {Precision} precision
  * @typedef {"lowp" | "mediump" | "highp"} Precision
  */
-export function get_fragment_shader_source(bytebeat, precision) {
-    let [core, additional_variables] = parse_program(bytebeat);
-
+export function get_fragment_shader_source(core, additional_lines, precision) {
     let variable_text = "";
-    for (const var_text of additional_variables) {
+    for (const var_text of additional_lines) {
         variable_text += `    ${var_text};\n`;
     }
 
@@ -57,7 +56,7 @@ void main() {
  * @param {string} bytebeat 
  * @returns {[string, string[]]}
  */
-function parse_program(bytebeat) {
+function exact_parse_program(bytebeat) {
     let split = bytebeat.split(";");
     console.assert(split.length > 0);
 
@@ -77,13 +76,12 @@ function parse_program(bytebeat) {
  * @param {number} type The type of shader being
  * compiled. This should be equal to gl.VERTEX_SHADER or gl.FRAGMENT_SHADER.
  * @param {string} source The source code of the shader to load.
- * @returns {WebGLShader} The compiled shader.
- * @throws {Error} Throws if the shader did not compile successfully.
+ * @returns {WebGLShader | Error} The compiled shader, or an error if the shader did not compile successfully.
  */
 function loadShader(gl, type, source) {
     const shader = gl.createShader(type);
     if (shader == null) {
-        throw new Error("Expected shader to be non-null!");
+        return new Error("Expected shader to be non-null!");
     }
 
     // Send the source to the shader object
@@ -97,7 +95,7 @@ function loadShader(gl, type, source) {
         let shader_name = type == gl.VERTEX_SHADER ? "vertex" : "fragement";
         let msg = `An error occurred compiling the ${shader_name} shader: ${gl.getShaderInfoLog(shader)}\n\n=== Shader Source ===\n\n${source}`;
         gl.deleteShader(shader);
-        throw new Error(msg);
+        return new Error(msg);
     }
 
     return shader;
@@ -108,17 +106,19 @@ function loadShader(gl, type, source) {
  * @param {WebGL2RenderingContext} gl the context to load the program into
  * @param {string} vsSource The source of the vertex shader.
  * @param {string} fsSource The source of the fragment shader.
- * @returns {WebGLProgram} The compiled program.
- * @throws {Error} Throws if the program was unable to be compiled. 
+ * @returns {WebGLProgram | Error} The compiled program, or an error if the program could not be compiled
  */
 function initShaderProgram(gl, vsSource, fsSource) {
     const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
     const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
+    if (vertexShader instanceof Error) { return vertexShader; }
+    if (fragmentShader instanceof Error) { return fragmentShader; }
+
     // Create the shader program
     const shaderProgram = gl.createProgram();
     if (shaderProgram == null) {
-        throw new Error("Expected gl.createProgram() to return a WebGLProgram, got null.");
+        return new Error("Expected gl.createProgram() to return a WebGLProgram, got null.");
     }
 
     gl.attachShader(shaderProgram, vertexShader);
@@ -127,7 +127,7 @@ function initShaderProgram(gl, vsSource, fsSource) {
 
     // If creating the shader program failed, alert
     if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        throw new Error(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
+        return new Error(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
     }
 
     return shaderProgram;
@@ -255,31 +255,38 @@ function render(gl, positionAttributeIndex) {
 }
 
 /**
- * Compile a Bytebeat. This returns a ProgramInfo containing the program and it's various buffer
- * locations.
- * @param {WebGL2RenderingContext} gl the context to render with
- * @param {string} bytebeat the bytebeat to render
+ * @param {WebGL2RenderingContext} gl
+ * @param {string} bytebeat
  * @param {Precision} precision
- * @return {typeof programInfo}
- * @throws {Error} Throws is the bytebeat cannot be compiled.
- * @typedef {ReturnType<typeof compileBytebeat>} ProgramInfo
+ * @returns {[WebGLProgram | Error, string]}
  */
-export function compileBytebeat(gl, bytebeat, precision) {
+function try_both_parse_methods(gl, bytebeat, precision) {
     const vsSource = get_vertex_shader_source();
-    const fsSource = get_fragment_shader_source(bytebeat, precision);
+    const fsSource1 = get_fragment_shader_source(...exact_parse_program(bytebeat), precision);
+    const shaderProgram1 = initShaderProgram(gl, vsSource, fsSource1);
+    if (shaderProgram1 instanceof WebGLProgram) {
+        return [shaderProgram1, fsSource1];
+    }
 
-    const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+    const program = Program.parse(bytebeat);
+    if (program instanceof Error) {
+        // Return the first program's errors, for better user error msg display.
+        return [shaderProgram1, fsSource1];
+    }
+    const [core, additional_lines] = exact_parse_program(program.toString("pretty"));
+    const fsSource2 = get_fragment_shader_source(core, additional_lines, precision);
+    const shaderProgram2 = initShaderProgram(gl, vsSource, fsSource2);
+    return [shaderProgram2, fsSource2];
+}
 
-    // programInfo contains the attribute and uniform locations, which is how we can interact with
-    // the shader. (See the vertex shader for where these are used).
-    // An attribute is a variable in the vertex shader and is available to JS. It is usually used for
-    // model data, vertex coordinates, color information, etc. 
-    // A varying is a variable that is declared by the vertex shader and passed to the fragment shader.
-    // A uniform is a variable set up by JS, but remains constant across the whole frame. This usually
-    // stores "global" information, like lighting information. It is available to the vertex and
-    // fragment shader.
-    // See also: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Data
-    const programInfo = {
+/**
+ * @param {WebGL2RenderingContext} gl
+ * @param {WebGLProgram} shaderProgram
+ * @return {typeof programInfo}
+ * @typedef {ReturnType<typeof program_info>} ProgramInfo
+ */
+function program_info(gl, shaderProgram) {
+    let programInfo = {
         program: shaderProgram,
         uniforms: {
             color: gl.getUniformLocation(shaderProgram, "color"),
@@ -299,10 +306,36 @@ export function compileBytebeat(gl, bytebeat, precision) {
             position: unwrap(gl.getAttribLocation(shaderProgram, "aVertexPosition")),
         },
     };
+    return programInfo;
+}
+
+/**
+ * Compile a Bytebeat. This returns a ProgramInfo containing the program and it's various buffer
+ * locations.
+ * @param {WebGL2RenderingContext} gl the context to render with
+ * @param {string} bytebeat the bytebeat program
+ * @param {Precision} precision
+ * @return {[ProgramInfo | Error, string]}
+ */
+export function compileBytebeat(gl, bytebeat, precision) {
+
+    const [shaderProgram, fsSource] = try_both_parse_methods(gl, bytebeat, precision);
+    if (shaderProgram instanceof Error) { return [shaderProgram, fsSource]; }
+
+    // programInfo contains the attribute and uniform locations, which is how we can interact with
+    // the shader. (See the vertex shader for where these are used).
+    // An attribute is a variable in the vertex shader and is available to JS. It is usually used for
+    // model data, vertex coordinates, color information, etc. 
+    // A varying is a variable that is declared by the vertex shader and passed to the fragment shader.
+    // A uniform is a variable set up by JS, but remains constant across the whole frame. This usually
+    // stores "global" information, like lighting information. It is available to the vertex and
+    // fragment shader.
+    // See also: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Data
+    const programInfo = program_info(gl, shaderProgram);
 
     initBuffers(gl);
 
-    return programInfo;
+    return [programInfo, fsSource];
 }
 
 /**

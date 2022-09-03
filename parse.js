@@ -565,21 +565,13 @@ class Assign {
      * @returns {string}
      */
     toString(style) {
-        const type = this.explicit_type ? this.explicit_type : "";
+        const type = this.explicit_type ? this.explicit_type : this.expr.type();
         const ident = this.ident.toString();
         const expr = this.expr.toString(style);
         if (style == "pretty") {
-            if (this.explicit_type) {
-                return `${type} ${ident} = ${expr};`;
-            } else {
-                return `${ident} = ${expr};`;
-            }
+            return `${type} ${ident} = ${expr};`;
         } else {
-            if (this.explicit_type) {
-                return `${type} ${ident}=${expr};`;
-            } else {
-                return `${ident}=${expr};`;
-            }
+            return `${type} ${ident}=${expr};`;
         }
     }
 
