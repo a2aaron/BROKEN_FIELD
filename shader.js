@@ -270,6 +270,7 @@ function try_both_parse_methods(gl, bytebeat, precision) {
 
     const program = Program.parse(bytebeat);
     if (program instanceof Error) {
+        console.log(program);
         // Return the first program's errors, for better user error msg display.
         return [shaderProgram1, fsSource1];
     }

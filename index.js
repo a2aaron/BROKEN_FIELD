@@ -334,6 +334,8 @@ function main() {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
             set_bytebeat(simple);
          }
+      } else {
+         console.log(PARSE_INFO);
       }
    });
 

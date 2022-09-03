@@ -1,6 +1,6 @@
 /**
  * @typedef {number | boolean} Literal
- * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<"} BinOpToken
+ * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!="} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
@@ -8,7 +8,7 @@
  */
 
 /** @type {BinOpToken[]} */
-const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<"];
+const BINARY_OPERATORS = [">>", "<<", ">=", "<=", "==", "!=", ">", "<", "+", "-", "*", "/", "%", "&", "^", "|",];
 /** @type {UnaryOpToken[]} */
 const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */

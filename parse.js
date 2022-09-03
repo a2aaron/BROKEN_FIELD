@@ -76,7 +76,7 @@ export class Program {
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}`);
+                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}\n${assignments.toString()}\n\n${expr.toString("pretty")}`);
             }
             return [assignments, expr];
         }
@@ -178,6 +178,12 @@ export class BinOp {
             case ">>": return a >> b;
             // @ts-ignore
             case "<<": return a << b;
+            case ">": return a > b;
+            case "<": return a < b;
+            case ">=": return a >= b;
+            case "<=": return a <= b;
+            case "==": return a == b;
+            case "!=": return a != b;
         }
     }
 
@@ -194,6 +200,12 @@ export class BinOp {
             case "-": return 5;
             case ">>":
             case "<<": return 6;
+            case ">":
+            case "<":
+            case ">=":
+            case "<=": return 7;
+            case "==":
+            case "!=": return 8;
             case "&": return 9;
             case "^": return 10;
             case "|": return 11;
@@ -523,12 +535,19 @@ export class BinOpExpr {
             case "-":
             case "*":
             case "/":
-            case "%": return require(left_ty, right_ty, "int", "float")
+            case "%": return require(left_ty, right_ty, ["int", "float"], "same");
             case "^":
             case "&":
             case "|":
             case ">>":
-            case "<<": return require(left_ty, right_ty, "int");
+            case "<<": return require(left_ty, right_ty, ["int"], "same");
+            case ">":
+            case "<":
+            case ">=":
+            case "<=": return require(left_ty, right_ty, ["int", "float"], "bool");
+            case "==":
+            case "!=": return require(left_ty, right_ty, ["int", "float", "bool"], "bool");
+
         }
 
         /**
@@ -536,11 +555,12 @@ export class BinOpExpr {
          * @param {GLSLType} left_type
          * @param {GLSLType[]} expected_types
          * @param {GLSLType} right_type
+         * @param {GLSLType | "same"} return_type
          */
-        function require(left_type, right_type, ...expected_types) {
+        function require(left_type, right_type, expected_types, return_type) {
             for (const type of expected_types) {
                 if (left_type == type && right_type == type) {
-                    return type;
+                    return return_type == "same" ? type : return_type;
                 }
             }
             return "error";
