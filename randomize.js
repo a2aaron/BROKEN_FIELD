@@ -94,7 +94,7 @@ export function random_bytebeat() {
     let depth_limit = getTypedElementById(HTMLInputElement, "randomize-depth-limit");
     let max_depth = parseInt(depth_limit.value);
     let expr = random_binop_expr(max_depth);
-    return expr.toString();
+    return expr.toString("pretty");
 }
 
 /**
@@ -106,13 +106,13 @@ export function mutate_bytebeat(bytebeat) {
     let mutate_ops = getTypedElementById(HTMLInputElement, "mutate-enable-ops").checked;
     let mutate_values = getTypedElementById(HTMLInputElement, "mutate-enable-values").checked;
 
-    let program = new Program(bytebeat);
-    if (program.expr == null) {
+    let program = Program.parse(bytebeat);
+    if (program instanceof Error) {
         return bytebeat;
     }
 
     let expr = mutate(program.expr, mutate_values, mutate_ops);
-    return expr.toString()
+    return new Program(program.assignments, expr).toString("pretty")
 
     /**
      * @param {Expr} expr

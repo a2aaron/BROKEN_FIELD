@@ -17,28 +17,38 @@ import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, is_bin_op_token, is_lit
 
 /**
  * @typedef {TypeToken | "unknown" | "error"} GLSLType
+ * @typedef {"pretty" | "minimal"} PrintStyle
  */
+
 
 const MAX_PRECEDENCE = 12;
 
 
 export class Program {
-    /** @param {string} bytebeat */
-    constructor(bytebeat) {
+    /**
+     * @param {Assign[]} assignments
+     * @param {Expr} expr
+     */
+    constructor(assignments, expr) {
+        this.assignments = assignments;
+        this.expr = expr;
+        this.ub_info = this.expr.check_ub();
+    }
+
+    /** 
+     * @param {string} bytebeat 
+     * @returns {Program | Error}
+     */
+    static parse(bytebeat) {
         let result = try_parse(bytebeat);
         if (result instanceof Error) {
-            this.error = result;
-            this.assignments = null;
-            this.expr = null;
-            this.ub_info = null;
-            return;
+            return result;
         }
 
-        this.error = null;
-        this.assignments = result[0];
-        this.expr = result[1];
-        this.ub_info = this.expr.check_ub();
+        const assignments = result[0];
+        const expr = result[1];
 
+        return new Program(assignments, expr);
         /**
          * Try to parse a string into an expression.
          * @param {string} bytebeat
@@ -71,13 +81,38 @@ export class Program {
             return [assignments, expr];
         }
     }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        let program = "";
+        for (const assign of this.assignments ?? []) {
+            program += style == "pretty" ? assign.toString(style) + "\n" : assign.toString(style);
+        }
+        program += this.expr?.toString(style) ?? "";
+
+        return program;
+    }
+
+    /**
+     * @returns {Program}
+     */
+    simplify() {
+        let assignments = [];
+        for (const assign of this.assignments) {
+            assignments.push(assign.simplify());
+        }
+        let expr = this.expr.simplify();
+        return new Program(assignments, expr);
+    }
 }
 
 export class UnaryOp {
     /** @param {UnaryOpToken} value */
     constructor(value) { this.value = value; }
 
-    /** @returns {string} */
     toString() { return this.value; }
 
     /**
@@ -216,7 +251,6 @@ export class Value {
         return is_literal(this.value);
     }
 
-    /** @returns {string} */
     toString() {
         return this.value.toString();
     }
@@ -237,12 +271,15 @@ export class UnaryOpExpr {
         this.op = op;
     }
 
-    /** @returns {string} */
-    toString() {
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
         if (needs_parenthesis(this, this.value, "right")) {
-            return `${this.op.toString()}(${this.value.toString()})`;
+            return `${this.op.toString()}(${this.value.toString(style)})`;
         } else {
-            return `${this.op.toString()}${this.value.toString()}`;
+            return `${this.op.toString()}${this.value.toString(style)}`;
         }
     }
 
@@ -303,19 +340,26 @@ export class BinOpExpr {
         this.right = right;
     }
 
-    /** @returns {string} */
-    toString() {
-        let left = `${this.left.toString()}`;
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        let left = `${this.left.toString(style)}`;
         if (needs_parenthesis(this, this.left, "left")) {
             left = `(${left})`;
         }
 
-        let right = `${this.right.toString()}`;
+        let right = `${this.right.toString(style)}`;
         if (needs_parenthesis(this, this.right, "right")) {
             right = `(${right})`;
         }
 
-        return `${left} ${this.op.toString()} ${right}`;
+        if (style == "pretty") {
+            return `${left} ${this.op.toString()} ${right}`;
+        } else {
+            return `${left}${this.op.toString()}${right}`;
+        }
     }
 
     /** @returns {Expr} */
@@ -329,19 +373,19 @@ export class BinOpExpr {
             }
         }
 
-        /** @type {[string, string, string, string | number, string?][]} */
+        /** @type {[string | number, string, string | number, string | number, string?][]} */
         let rules = [
             // Constant Identities
-            ["?a", "+", "0", "?a", "commutative"],
-            ["?a", "-", "0", "?a"],
-            ["?a", "*", "0", 0, "commutative"],
-            ["?a", "*", "1", "?a", "commutative"],
-            ["?a", "/", "1", "?a"],
-            [" 0", "/", "?a", 0],
+            ["?a", "+", 0, "?a", "commutative"],
+            ["?a", "-", 0, "?a"],
+            ["?a", "*", 0, 0, "commutative"],
+            ["?a", "*", 1, "?a", "commutative"],
+            ["?a", "/", 1, "?a"],
+            [0, "/", "?a", 0],
             // Modulo Identities
-            ["?a", "%", "-1", 0],
-            ["?a", "%", "0", 0],
-            ["?a", "%", "1", 0],
+            ["?a", "%", -1, 0],
+            ["?a", "%", 0, 0],
+            ["?a", "%", 1, 0],
             // Reflexive Identities
             ["?a", "-", "?a", 0],
             ["?a", "/", "?a", 1],
@@ -350,21 +394,22 @@ export class BinOpExpr {
             ["?a", "&", "?a", "?a"],
             ["?a", "|", "?a", "?a"],
             // Bitwise w Zero
-            ["?a", "&", "0", 0, "commutative"],
-            ["?a", "|", "0", "?a", "commutative"],
-            ["?a", "^", "0", "?a", "commutative"],
+            ["?a", "&", 0, 0, "commutative"],
+            ["?a", "|", 0, "?a", "commutative"],
+            ["?a", "^", 0, "?a", "commutative"],
             // Bitshift w Zero
-            ["?a", ">>", "0", "?a"],
-            ["?a", "<<", "0", "?a"],
-            ["0", ">>", "?a", 0],
-            ["0", "<<", "?a", 0],
+            ["?a", ">>", 0, "?a"],
+            ["?a", "<<", 0, "?a"],
+            [0, ">>", "?a", 0],
+            [0, "<<", "?a", 0],
         ];
-        for (let [rule_left, rule_op, rule_right, rule_result, commutative] of rules) {
-            rule_left = rule_left.trim();
-            rule_op = rule_op.trim();
-            rule_right = rule_right.trim();
+        for (let [r_left, rule_op, r_right, rule_result, commutative] of rules) {
             /** @type {"?a" | Expr} */
-            let result = rule_result == "?a" ? "?a" : new Value(rule_result);
+            const rule_left = r_left == "?a" ? "?a" : new Value(r_left);
+            /** @type {"?a" | Expr} */
+            const rule_right = r_right == "?a" ? "?a" : new Value(r_right);
+            /** @type {"?a" | Expr} */
+            const result = rule_result == "?a" ? "?a" : new Value(rule_result);
 
             const is_commutative = commutative === "commutative";
 
@@ -378,11 +423,14 @@ export class BinOpExpr {
             }
         }
 
-        // ?x - (-?a) => ?x + ?a
-        if (right instanceof UnaryOpExpr) {
-            if (right.op.toString() == "-" && this.op.toString() == "-") {
+        if (this.op.toString() == "-") {
+            // ?x - (-?a) => ?x + ?a
+            if (right instanceof UnaryOpExpr && right.op.toString() == "-") {
                 return new BinOpExpr(left, new BinOp("+"), right.value);
+            } else if (right instanceof Value && typeof right.value == "number" && right.value < 0) {
+                return new BinOpExpr(left, new BinOp("+"), new Value(-right.value));
             }
+
         }
 
         return new BinOpExpr(left, this.op, right);
@@ -390,9 +438,9 @@ export class BinOpExpr {
 
         /**
          * Check if the rule-values matches the actual values
-         * @param {string} rule_left
+         * @param {"?a" | Expr} rule_left
          * @param {string} rule_op
-         * @param {string} rule_right
+         * @param {"?a" | Expr} rule_right
          * @param {"?a" | Expr} result
          * @param {Expr} left
          * @param {string} op
@@ -402,21 +450,21 @@ export class BinOpExpr {
         function try_apply_rule(rule_left, rule_op, rule_right, result, left, op, right) {
             const op_matches = rule_op == op;
 
-            const wild_left = rule_left == "?a";
-            const wild_right = rule_right == "?a";
+            const wild_left = rule_left === "?a";
+            const wild_right = rule_right === "?a";
 
             let values_match = false;
             if (wild_left && wild_right) {
-                values_match = left.toString() === right.toString();
+                values_match = expr_eq(left, right);
             } else {
-                values_match = (wild_left || rule_left === left.toString()) && (wild_right || rule_right === right.toString());
+                values_match = (wild_left || expr_eq(rule_left, left)) && (wild_right || expr_eq(rule_right, right));
             }
 
             if (op_matches && values_match) {
                 if (result == "?a") {
                     if (rule_left == "?a") {
                         return left;
-                    } else if (rule_left == "?a") {
+                    } else if (rule_right == "?a") {
                         return right;
                     } else {
                         throw new Error("Malformed simplification rule.");
@@ -512,12 +560,32 @@ class Assign {
         this.expr = expr;
     }
 
-    toString() {
-        if (this.explicit_type) {
-            return `${this.explicit_type} ${this.ident.toString()} = ${this.expr.toString()};`;
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        const type = this.explicit_type ? this.explicit_type : "";
+        const ident = this.ident.toString();
+        const expr = this.expr.toString(style);
+        if (style == "pretty") {
+            if (this.explicit_type) {
+                return `${type} ${ident} = ${expr};`;
+            } else {
+                return `${ident} = ${expr};`;
+            }
         } else {
-            return `${this.ident.toString()} = ${this.expr.toString()};`;
+            if (this.explicit_type) {
+                return `${type} ${ident}=${expr};`;
+            } else {
+                return `${ident}=${expr};`;
+            }
         }
+    }
+
+    simplify() {
+        const expr = this.expr.simplify();
+        return new Assign(this.explicit_type, this.ident, this.expr);
     }
 }
 
@@ -861,6 +929,23 @@ function needs_parenthesis(parent, child, which_child) {
 /** @param {GLSLType} type  */
 function is_unknown_or_error(type) {
     return type == "unknown" || type == "error";
+}
+
+/**
+ * @param {Expr} left 
+ * @param {Expr} right 
+ * @returns {boolean}
+ */
+function expr_eq(left, right) {
+    if (left instanceof Value && right instanceof Value) {
+        return left.value === right.value;
+    } else if (left instanceof UnaryOpExpr && right instanceof UnaryOpExpr) {
+        return left.op === right.op && expr_eq(left.value, right.value);
+    } else if (left instanceof BinOpExpr && right instanceof BinOpExpr) {
+        return left.op === right.op && expr_eq(left.left, right.left) && expr_eq(left.right, right.right);
+    } else {
+        return false;
+    }
 }
 
 /**

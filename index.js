@@ -48,8 +48,8 @@ const gl = unwrap(canvas.getContext("webgl2"));
 
 /** @type {import("./shader.js").ProgramInfo | null} */
 let BYTEBEAT_PROGRAM_INFO = null;
-/** @type {Program} */
-let PARSE_INFO = new Program("(sx ^ sy) + t");
+/** @type {Program | Error} */
+let PARSE_INFO = Program.parse("(sx ^ sy) + t");
 
 let MOUSE_X = 0;
 let MOUSE_Y = 0;
@@ -178,14 +178,14 @@ function set_bytebeat(bytebeat) {
    bytebeat_textarea.value = bytebeat;
    shader_source_textarea.value = get_fragment_shader_source(bytebeat, get_ui_parameters().precision);
 
-   PARSE_INFO = new Program(bytebeat);
+   PARSE_INFO = Program.parse(bytebeat);
 
    try {
       BYTEBEAT_PROGRAM_INFO = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
       LAST_FRAME_TIME = Date.now();
 
       render_error_messages();
-      let ub_info = PARSE_INFO.ub_info;
+      let ub_info = PARSE_INFO instanceof Program ? PARSE_INFO.ub_info : null;
       ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
    } catch (err) {
       // @ts-ignore
@@ -216,7 +216,7 @@ This might mean that your program might display differently or not work on other
    
 The following part of your program exhibits the undefined behavior:
 
-   ${location.toString()}
+   ${location.toString("pretty")}
 
 The reason for the undefined behavior is: ${ub_reason}.`;
    }
@@ -331,12 +331,11 @@ function main() {
    })
 
    simplify_button.addEventListener("click", () => {
-      let parsed = PARSE_INFO.expr;
-      if (parsed) {
-         let simple = parsed.simplify();
-         if (bytebeat_textarea.value != simple.toString()) {
+      if (PARSE_INFO instanceof Program) {
+         let simple = PARSE_INFO.simplify().toString("pretty");
+         if (bytebeat_textarea.value != simple.toString("pretty")) {
             add_bytebeat_history(params_to_string(get_ui_parameters()));
-            set_bytebeat(simple.toString());
+            set_bytebeat(simple.toString("pretty"));
          }
       }
    });
@@ -346,7 +345,13 @@ function main() {
 
       let bytebeat = params.bytebeat;
       if (getTypedElementById(HTMLInputElement, "share-link-whitespace").checked) {
-         bytebeat = bytebeat.replaceAll(" ", "");
+         const program = Program.parse(bytebeat);
+         if (program instanceof Program) {
+            bytebeat = program.toString("minimal");
+         } else {
+            bytebeat = bytebeat.replaceAll(" ", "");
+
+         }
       }
 
       let stringy_params = {
