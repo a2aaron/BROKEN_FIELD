@@ -7,6 +7,7 @@ import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, is_bin_op_token, is_lit
  * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
  * @typedef {import("./tokenize.js").Token} Token
+ * @typedef {import("./tokenize.js").TypeContext} TypeContext
  */
 
 /**
@@ -88,8 +89,9 @@ export class Program {
      */
     toString(style) {
         let program = "";
+        const type_ctx = this.get_type_ctx();
         for (const assign of this.assignments ?? []) {
-            program += style == "pretty" ? assign.toString(style) + "\n" : assign.toString(style);
+            program += style == "pretty" ? assign.toString(style, type_ctx) + "\n" : assign.toString(style, type_ctx);
         }
         program += this.expr?.toString(style) ?? "";
 
@@ -106,6 +108,17 @@ export class Program {
         }
         let expr = this.expr.simplify();
         return new Program(assignments, expr);
+    }
+
+    /** @returns {TypeContext} */
+    get_type_ctx() {
+        /** @type {TypeContext} */
+        let type_ctx = [];
+        for (const assign of this.assignments) {
+            type_ctx.push({ ident: assign.ident, type: assign.expr_type(type_ctx) });
+        }
+        console.log(type_ctx);
+        return type_ctx;
     }
 }
 
@@ -246,10 +259,13 @@ export class Value {
         }
     }
 
-    /** @returns {GLSLType} */
-    type() {
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     * */
+    type(type_ctx) {
         if (this.value instanceof Identifier) {
-            return this.value.type();
+            return this.value.type(type_ctx);
         } else if (typeof this.value == "number") {
             return Number.isInteger(this.value) ? "int" : "float";
         } else if (typeof this.value == "boolean") {
@@ -324,9 +340,12 @@ export class UnaryOpExpr {
 
     check_ub() { return null; }
 
-    /** @returns {GLSLType} */
-    type() {
-        let value_type = this.value.type();
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     * */
+    type(type_ctx) {
+        let value_type = this.value.type(type_ctx);
         if (is_unknown_or_error(value_type)) {
             return value_type;
         }
@@ -519,10 +538,13 @@ export class BinOpExpr {
         }
     }
 
-    /** @returns {GLSLType} */
-    type() {
-        let left_ty = this.left.type();
-        let right_ty = this.right.type();
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     * */
+    type(type_ctx) {
+        let left_ty = this.left.type(type_ctx);
+        let right_ty = this.right.type(type_ctx);
 
         if (is_unknown_or_error(left_ty)) {
             return left_ty;
@@ -582,10 +604,11 @@ class Assign {
 
     /**
      * @param {PrintStyle} style
+     * @param {TypeContext} type_ctx
      * @returns {string}
      */
-    toString(style) {
-        const type = this.explicit_type ? this.explicit_type : this.expr.type();
+    toString(style, type_ctx) {
+        const type = this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
         const ident = this.ident.toString();
         const expr = this.expr.toString(style);
         if (style == "pretty") {
@@ -598,6 +621,14 @@ class Assign {
     simplify() {
         const expr = this.expr.simplify();
         return new Assign(this.explicit_type, this.ident, this.expr);
+    }
+
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     * */
+    expr_type(type_ctx) {
+        return this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
     }
 }
 

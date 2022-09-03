@@ -1,10 +1,15 @@
 /**
+ * @typedef {import("./parse").GLSLType} GLSLType
+ */
+
+/**
  * @typedef {number | boolean} Literal
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!="} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
  * @typedef {"(" | ")" | "=" | ";" | TypeToken | OpToken | Identifier | Literal} Token
+ * @typedef {{ident: Identifier, type: GLSLType}[]} TypeContext
  */
 
 /** @type {BinOpToken[]} */
@@ -31,12 +36,21 @@ export class Identifier {
 
     toString() { return this.identifier; }
 
-    type() {
+    /**
+     * @param {TypeContext} type_ctx 
+     * @returns {GLSLType}
+     */
+    type(type_ctx) {
         if (INTEGER_VARIABLES.includes(this.identifier)) {
             return "int";
         } else if (FLOAT_VARIABLES.includes(this.identifier)) {
             return "float";
         } else {
+            for (const { ident, type } of type_ctx) {
+                if (ident.identifier == this.identifier) {
+                    return type;
+                }
+            }
             return "unknown";
         }
     }
