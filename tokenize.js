@@ -9,7 +9,7 @@
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
  * @typedef {"(" | ")" | "=" | ";" | TypeToken | OpToken | Identifier | Literal} Token
- * @typedef {{ident: Identifier, type: GLSLType}[]} TypeContext
+ * @typedef {{[ident: string]: GLSLType}} TypeContext
  */
 
 /** @type {BinOpToken[]} */
@@ -46,8 +46,8 @@ export class Identifier {
         } else if (FLOAT_VARIABLES.includes(this.identifier)) {
             return "float";
         } else {
-            for (const { ident, type } of type_ctx) {
-                if (ident.identifier == this.identifier) {
+            for (const [ident, type] of Object.entries(type_ctx)) {
+                if (ident == this.identifier) {
                     return type;
                 }
             }

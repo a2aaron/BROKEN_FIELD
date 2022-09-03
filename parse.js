@@ -69,6 +69,15 @@ export class Program {
                 if (assign instanceof Error) {
                     break;
                 } else {
+                    // check if the assignment is already in the assignment list or not.
+                    assign.is_declaration = true;
+                    for (const other_assign of assignments) {
+                        if (assign.ident.identifier == other_assign.ident.identifier) {
+                            assign.is_declaration = false;
+                            break;
+                        }
+                    }
+
                     assignments.push(assign);
                 }
             }
@@ -91,7 +100,9 @@ export class Program {
         let program = "";
         const type_ctx = this.get_type_ctx();
         for (const assign of this.assignments ?? []) {
-            program += style == "pretty" ? assign.toString(style, type_ctx) + "\n" : assign.toString(style, type_ctx);
+            const include_type = assign.is_declaration === true;
+            const assign_msg = assign.toString(style, type_ctx, include_type);
+            program += style == "pretty" ? assign_msg + "\n" : assign_msg;
         }
         program += this.expr?.toString(style) ?? "";
 
@@ -113,9 +124,12 @@ export class Program {
     /** @returns {TypeContext} */
     get_type_ctx() {
         /** @type {TypeContext} */
-        let type_ctx = [];
+        let type_ctx = {};
         for (const assign of this.assignments) {
-            type_ctx.push({ ident: assign.ident, type: assign.expr_type(type_ctx) });
+            const ident = assign.ident.identifier;
+            if (!(ident in type_ctx)) {
+                type_ctx[ident] = assign.expr_type(type_ctx);
+            }
         }
         console.log(type_ctx);
         return type_ctx;
@@ -595,32 +609,38 @@ class Assign {
      * @param {GLSLType | null} type
      * @param {Identifier} ident
      * @param {Expr} expr
+     * @param {boolean | null} is_declaration true if this is a declaration, false if this is a
+     * reassignment, and null if unknown.
      */
-    constructor(type, ident, expr) {
+    constructor(type, ident, expr, is_declaration) {
         this.explicit_type = type;
         this.ident = ident;
         this.expr = expr;
+        this.is_declaration = is_declaration;
     }
 
     /**
      * @param {PrintStyle} style
      * @param {TypeContext} type_ctx
+     * @param {boolean} include_type
      * @returns {string}
      */
-    toString(style, type_ctx) {
-        const type = this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
+    toString(style, type_ctx, include_type) {
         const ident = this.ident.toString();
         const expr = this.expr.toString(style);
-        if (style == "pretty") {
-            return `${type} ${ident} = ${expr};`;
+        const equation = style == "pretty" ? `${ident} = ${expr};` : `${ident}=${expr};`;
+
+        if (include_type) {
+            const type = this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
+            return `${type} ${equation}`;
         } else {
-            return `${type} ${ident}=${expr};`;
+            return `${equation}`;
         }
     }
 
     simplify() {
         const expr = this.expr.simplify();
-        return new Assign(this.explicit_type, this.ident, this.expr);
+        return new Assign(this.explicit_type, this.ident, this.expr, this.is_declaration);
     }
 
     /**
@@ -677,7 +697,7 @@ class TokenStream {
             this.consume_one();
             return next_token;
         } else {
-            return new Error(`Expected an identifier, got ${next_token}`);
+            return new Error(`Expected an identifier, got ${next_token} `);
         }
     }
 
@@ -690,7 +710,7 @@ class TokenStream {
             this.consume_one();
             return new Value(next_token);
         } else {
-            return new Error(`Expected literal or identifier, got ${next_token}`);
+            return new Error(`Expected literal or identifier, got ${next_token} `);
         }
 
     }
@@ -701,7 +721,7 @@ class TokenStream {
             this.consume_one();
             return new UnaryOp(next_token);
         } else {
-            return new Error(`Expected a BinOpToken, got ${next_token}`);
+            return new Error(`Expected a BinOpToken, got ${next_token} `);
         }
     }
 
@@ -711,7 +731,7 @@ class TokenStream {
             this.consume_one();
             return new BinOp(next_token);
         } else {
-            return new Error(`Expected a BinOpToken, got ${next_token}`);
+            return new Error(`Expected a BinOpToken, got ${next_token} `);
         }
     }
 
@@ -799,7 +819,7 @@ class TokenStream {
          */
         function term_stream(terms, ops) {
             if (ops.length + 1 != terms.length) {
-                throw new Error(`Expected terms array to containg one more element than the ops array. Got ${terms.length} terms and ${ops.length} ops`)
+                throw new Error(`Expected terms array to containg one more element than the ops array.Got ${terms.length} terms and ${ops.length} ops`)
             }
 
             // We scan over the term stream, looking for a highest-precendence op (numberically, this is the lowest 
@@ -811,7 +831,7 @@ class TokenStream {
             // scan in the opposite direction (right to left) for right-associative operators.
             for (let current_precedence = 0; current_precedence <= MAX_PRECEDENCE; current_precedence += 1) {
                 if (terms.length == 1) {
-                    console.assert(ops.length == 0, `Expected ops length to be zero, got ${ops}`);
+                    console.assert(ops.length == 0, `Expected ops length to be zero, got ${ops} `);
                     return terms[0];
                 }
                 let i = 0;
@@ -834,7 +854,7 @@ class TokenStream {
                 }
             }
 
-            return new Error(`Did not parse all of term stream: ${terms}, ${ops}`);
+            return new Error(`Did not parse all of term stream: ${terms}, ${ops} `);
         }
     }
 
@@ -857,7 +877,7 @@ class TokenStream {
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Assign(type, identifier, expr);
+        return new Assign(type, identifier, expr, null);
     }
 
     /** 
@@ -879,7 +899,7 @@ class TokenStream {
         if (this.index < this.stream.length) {
             this.index += 1;
         } else {
-            throw new Error(`Cannot consume next token, current: ${this.index}, length: ${this.stream.length}`);
+            throw new Error(`Cannot consume next token, current: ${this.index}, length: ${this.stream.length} `);
         }
     }
 
@@ -891,7 +911,7 @@ class TokenStream {
             this.index += 1;
             return null;
         } else {
-            return new Error(`Expected ${token}, got ${this.stream[this.index]}`);
+            return new Error(`Expected ${token}, got ${this.stream[this.index]} `);
         }
     }
 
