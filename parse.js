@@ -86,7 +86,7 @@ export class Program {
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}\n${assignments.toString()}\n\n${expr.toString("pretty")}`);
+                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}\nAssignments: ${assignments.toString()}\n\nExpr: ${expr.toString("pretty")}`);
             }
             return [assignments, expr];
         }
@@ -131,7 +131,6 @@ export class Program {
                 type_ctx[ident] = assign.expr_type(type_ctx);
             }
         }
-        console.log(type_ctx);
         return type_ctx;
     }
 }
@@ -604,6 +603,81 @@ export class BinOpExpr {
     }
 }
 
+class TernaryOp {
+    constructor() { }
+    precedence() { return 15; }
+}
+
+class TernaryOpExpr {
+    /**
+     * @param {Expr} cond_expr
+     * @param {Expr} true_expr
+     * @param {Expr} false_expr
+     */
+    constructor(cond_expr, true_expr, false_expr) {
+        this.cond_expr = cond_expr;
+        this.true_expr = true_expr;
+        this.false_expr = false_expr;
+        this.op = new TernaryOp();
+    }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {String}
+     */
+    toString(style) {
+        const cond_src = this.cond_expr.toString(style);
+        const true_src = this.true_expr.toString(style);
+        const false_src = this.false_expr.toString(style);
+        if (style == "pretty") {
+            return `${cond_src} ? ${true_src} : ${false_src}`;
+        } else {
+            return `${cond_src}?${true_src}:${false_src}`;
+        }
+    }
+
+    /**
+    * @param {TypeContext} type_ctx
+    * @returns {GLSLType}
+    * */
+    type(type_ctx) {
+        let cond_ty = this.cond_expr.type(type_ctx);
+        let true_ty = this.true_expr.type(type_ctx);
+        let false_ty = this.false_expr.type(type_ctx);
+        if (cond_ty != "bool") { return cond_ty; }
+        else if (is_unknown_or_error(true_ty)) {
+            return true_ty;
+        } else if (is_unknown_or_error(false_ty)) {
+            return false_ty;
+        } else if (true_ty != false_ty) {
+            return "error";
+        } else {
+            return true_ty;
+        }
+    }
+
+    /**
+     * 
+     * @returns {Expr}
+     */
+    simplify() {
+        let cond = this.cond_expr.simplify();
+        if (cond instanceof Value && cond.value === true) {
+            return this.true_expr.simplify();
+        } else if (cond instanceof Value && cond.value === false) {
+            return this.false_expr.simplify()
+        } else {
+            return new TernaryOpExpr(cond, this.true_expr.simplify(), this.false_expr.simplify());
+        }
+    }
+    /**
+     * @returns {UBInfo | null}
+     */
+    check_ub() {
+        return null;
+    }
+}
+
 class Assign {
     /**
      * @param {GLSLType | null} type
@@ -659,7 +733,8 @@ class Assign {
  * <literal>  ::= <number> | "true" | "false"
  * <value>    ::= <literal> | <identifier>
  * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
- * <expr>     ::= <term> (<bin_op> <term>)*
+ * <t_stream> ::= <term> (<bin_op> <term>)* 
+ * <expr>     ::= <t_stream> ("?" <expr> ":" <expr>)/
  * <assign>   ::= <type>? <ident> "=" <expr> ";"
  * <program>  ::= <assign>* <expr>
  * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
@@ -667,8 +742,8 @@ class Assign {
  * 
  * A <term>, from the perspective of an <expr>, is a single unit.
  * 
- * @typedef {Value | BinOpExpr | UnaryOpExpr} Term
- * @typedef {Value | BinOpExpr | UnaryOpExpr} Expr
+ * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr} Term
+ * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr} Expr
  * 
  */
 class TokenStream {
@@ -743,6 +818,7 @@ class TokenStream {
         let token_stream = this.copy();
 
         const next_token = token_stream.peek();
+
         if (next_token == "(") {
             token_stream.consume_one();
             const expr = token_stream.parse_expr();
@@ -771,11 +847,12 @@ class TokenStream {
         }
     }
 
-    /** 
-     * Consumes tokens from the TokenStream and constructs an Expr
+
+    /**
+     * Parses <term> (<bin_op> <term>)* and returns an Expr
      * @returns {Expr | Error}
      */
-    parse_expr() {
+    parse_term_stream() {
         let stream = this.copy();
 
         const first_term = stream.parse_term();
@@ -801,7 +878,6 @@ class TokenStream {
 
         const out_term = term_stream(terms, ops);
         if (out_term instanceof Error) { return out_term; }
-
         this.commit(stream);
         return out_term;
 
@@ -856,6 +932,38 @@ class TokenStream {
 
             return new Error(`Did not parse all of term stream: ${terms}, ${ops} `);
         }
+    }
+
+    /**
+     * Parses <t_stream> ("?" <expr> ":" <expr>)? and returns an Expr
+     * @returns {Expr | Error}
+     */
+    parse_expr() {
+        let stream = this.copy();
+        const term_stream = stream.parse_term_stream();
+        if (term_stream instanceof Error) {
+            return term_stream;
+        }
+
+        // Try to parse a ternary expression. If we can't, just return the existing term stream.
+        // Commit the stream at this point--if we fail to consume a ternary expression at this point,
+        // we will "fail" and return the valid term stream we just parsed.
+        this.commit(stream);
+
+        if (stream.peek() != "?") { return term_stream; }
+        stream.consume_one();
+
+        const true_expr = stream.parse_expr();
+        if (true_expr instanceof Error) { return term_stream; }
+
+        if (stream.peek() != ":") { return term_stream; }
+        stream.consume_one();
+
+        const false_expr = stream.parse_expr();
+        if (false_expr instanceof Error) { return term_stream; }
+
+        this.commit(stream);
+        return new TernaryOpExpr(term_stream, true_expr, false_expr);
     }
 
     /** 
@@ -943,6 +1051,10 @@ class TokenStream {
 function needs_parenthesis(parent, child, which_child) {
     if (child instanceof Value) {
         return false;
+    }
+
+    if (child instanceof TernaryOpExpr) {
+        return true;
     }
 
     // If the child binds more loosely than the parent, but we need the child to bind

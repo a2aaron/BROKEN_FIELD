@@ -1,4 +1,4 @@
-import { BinOpExpr, Program } from "./parse.js";
+import { Program } from "./parse.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
@@ -48,8 +48,8 @@ const gl = unwrap(canvas.getContext("webgl2"));
 
 /** @type {import("./shader.js").ProgramInfo | null} */
 let BYTEBEAT_PROGRAM_INFO = null;
-/** @type {Program | Error} */
-let PARSE_INFO = Program.parse("(sx ^ sy) + t");
+/** @type {Program | Error | null} */
+let PARSE_INFO = null;
 
 let MOUSE_X = 0;
 let MOUSE_Y = 0;
@@ -179,6 +179,7 @@ function set_bytebeat(bytebeat) {
 
    const [programInfo, fsSource] = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
    shader_source_textarea.value = fsSource;
+   const program = Program.parse(bytebeat);
    if (programInfo instanceof Error) {
       render_error_messages(programInfo);
       BYTEBEAT_PROGRAM_INFO = null;
@@ -186,11 +187,15 @@ function set_bytebeat(bytebeat) {
    } else {
       render_error_messages();
       BYTEBEAT_PROGRAM_INFO = programInfo;
-      PARSE_INFO = Program.parse(bytebeat);
+      PARSE_INFO = program;
       LAST_FRAME_TIME = Date.now();
 
       let ub_info = PARSE_INFO instanceof Program ? PARSE_INFO.ub_info : null;
       ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
+   }
+
+   if (program instanceof Error) {
+      ub_display.innerText += "\nInternal Parser " + program;
    }
 
    /**

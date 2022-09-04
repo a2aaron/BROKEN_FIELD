@@ -8,7 +8,9 @@
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
- * @typedef {"(" | ")" | "=" | ";" | TypeToken | OpToken | Identifier | Literal} Token
+ * @typedef {"true" | "false"} BoolToken
+ * @typedef {"(" | ")" | "=" | ";" | ":" | "?" | TypeToken | BoolToken | OpToken } TextualToken
+ * @typedef {TextualToken | Identifier | Literal} Token
  * @typedef {{[ident: string]: GLSLType}} TypeContext
  */
 
@@ -19,14 +21,19 @@ const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
 // @ts-ignore
 const OPERATORS = BINARY_OPERATORS.concat(UNARY_OPERATORS);
+/** @type {TypeToken[]} */
+const TYPE_TOKENS = ["int", "float", "bool"];
+/** @type {BoolToken[]} */
+const BOOLEANS = ["true", "false"];
+
+/** @type {TextualToken[]} */
+// @ts-ignore
+const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?"]).sort((x, y) => y.length - x.length);
+console.log(TEXT_TOKENS);
 
 export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
 
-const BOOLEANS = ["true", "false"];
-
-/** @type {TypeToken[]} */
-const TYPE_TOKENS = ["int", "float", "bool"];
 
 export class Identifier {
     /** @param {string} identifier */
@@ -79,33 +86,16 @@ export function tokenize(bytebeat) {
             continue;
         }
 
-        if (["(", ")", "=", ";"].includes(this_char)) {
-            i += 1;
-            // @ts-ignore
-            tokens.push(this_char);
-            continue;
-        }
-
-        for (const op of OPERATORS) {
-            if (remaining.startsWith(op)) {
-                tokens.push(op);
-                i += op.length;
-                continue outer;
-            }
-        }
-
-        for (const bool of BOOLEANS) {
-            if (remaining.startsWith(bool)) {
-                tokens.push(bool == "true");
-                i += bool.length;
-                continue outer;
-            }
-        }
-
-        for (const type of TYPE_TOKENS) {
-            if (remaining.startsWith(type)) {
-                tokens.push(type);
-                i += type.length;
+        for (const token of TEXT_TOKENS) {
+            if (remaining.startsWith(token)) {
+                if (token === "true") {
+                    tokens.push(true);
+                } else if (token === "false") {
+                    tokens.push(false);
+                } else {
+                    tokens.push(token);
+                }
+                i += token.length;
                 continue outer;
             }
         }

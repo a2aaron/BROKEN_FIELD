@@ -32,6 +32,7 @@ export function render_error_messages(...errors) {
 export function recursively_to_string(err) {
     let string = err.message;
     if (err.cause) {
+        // @ts-ignore
         string += recursively_to_string(err.cause);
     }
     return string;
