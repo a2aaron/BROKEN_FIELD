@@ -258,26 +258,26 @@ function render(gl, positionAttributeIndex) {
  * @param {WebGL2RenderingContext} gl
  * @param {string} bytebeat
  * @param {Precision} precision
- * @returns {[WebGLProgram | Error, string]}
+ * @returns {[WebGLProgram | Error, string, "raw" | "parsed"]}
  */
 function try_both_parse_methods(gl, bytebeat, precision) {
     const vsSource = get_vertex_shader_source();
     const fsSource1 = get_fragment_shader_source(...exact_parse_program(bytebeat), precision);
     const shaderProgram1 = initShaderProgram(gl, vsSource, fsSource1);
     if (shaderProgram1 instanceof WebGLProgram) {
-        return [shaderProgram1, fsSource1];
+        return [shaderProgram1, fsSource1, "raw"];
     }
 
     const program = Program.parse(bytebeat);
     if (program instanceof Error) {
         console.log(program);
         // Return the first program's errors, for better user error msg display.
-        return [shaderProgram1, fsSource1];
+        return [shaderProgram1, fsSource1, "raw"];
     }
     const [core, additional_lines] = exact_parse_program(program.toString("pretty"));
     const fsSource2 = get_fragment_shader_source(core, additional_lines, precision);
     const shaderProgram2 = initShaderProgram(gl, vsSource, fsSource2);
-    return [shaderProgram2, fsSource2];
+    return [shaderProgram2, fsSource2, "parsed"];
 }
 
 /**
@@ -316,12 +316,12 @@ function program_info(gl, shaderProgram) {
  * @param {WebGL2RenderingContext} gl the context to render with
  * @param {string} bytebeat the bytebeat program
  * @param {Precision} precision
- * @return {[ProgramInfo | Error, string]}
+ * @return {[ProgramInfo | Error, string, "raw" | "parsed"]}
  */
 export function compileBytebeat(gl, bytebeat, precision) {
 
-    const [shaderProgram, fsSource] = try_both_parse_methods(gl, bytebeat, precision);
-    if (shaderProgram instanceof Error) { return [shaderProgram, fsSource]; }
+    const [shaderProgram, fsSource, parse_type] = try_both_parse_methods(gl, bytebeat, precision);
+    if (shaderProgram instanceof Error) { return [shaderProgram, fsSource, parse_type]; }
 
     // programInfo contains the attribute and uniform locations, which is how we can interact with
     // the shader. (See the vertex shader for where these are used).
@@ -336,7 +336,7 @@ export function compileBytebeat(gl, bytebeat, precision) {
 
     initBuffers(gl);
 
-    return [programInfo, fsSource];
+    return [programInfo, fsSource, parse_type];
 }
 
 /**

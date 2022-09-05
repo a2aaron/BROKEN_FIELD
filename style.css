@@ -68,8 +68,11 @@ main {
     align-items: center;
 }
 
-.error-text {
+.red {
     color: red;
+}
+
+.mono-text {
     word-wrap: break-word;
     white-space: pre-wrap;
 }

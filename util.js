@@ -263,3 +263,18 @@ export function isNumber(str) {
     // could also coerce to string: str = ""+str
     return !isNaN(+str) && !isNaN(parseFloat(str))
 }
+
+/**
+ * @param {any[]} array 
+ * @returns {string}
+ */
+export function array_to_string(array) {
+    let out = "";
+    for (let i = 0; i < array.length; i += 1) {
+        out += array[i].toString();
+        if (i != array.length - 1) {
+            out += " ";
+        }
+    }
+    return out + "";
+}

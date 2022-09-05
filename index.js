@@ -174,10 +174,10 @@ function set_ui(params) {
 function set_bytebeat(bytebeat) {
    const shader_source_textarea = getTypedElementById(HTMLTextAreaElement, "shader-source-display");
    const ub_display = getTypedElementById(HTMLPreElement, "ub-check-display");
-
+   const parse_info_display = getTypedElementById(HTMLPreElement, "parse-info-display");
    bytebeat_textarea.value = bytebeat;
 
-   const [programInfo, fsSource] = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
+   const [programInfo, fsSource, compile_type] = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
    shader_source_textarea.value = fsSource;
    const program = Program.parse(bytebeat);
    if (programInfo instanceof Error) {
@@ -194,8 +194,11 @@ function set_bytebeat(bytebeat) {
       ub_display.innerText = ub_info ? get_ub_message(ub_info) : "";
    }
 
+   parse_info_display.innerText = `Compiled Shader Type: ${compile_type}`;
    if (program instanceof Error) {
-      ub_display.innerText += "\nInternal Parser " + program;
+      parse_info_display.innerText += `\nInternal Parser ${program}\nDebug Info: ${program.cause?.stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
+   } else {
+      parse_info_display.innerText += `\nParsed as: ${program.toString("pretty")}`;
    }
 
    /**

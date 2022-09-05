@@ -1,4 +1,5 @@
 import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, is_bin_op_token, is_literal, is_type_token, is_un_op_token, tokenize } from "./tokenize.js";
+import { array_to_string } from "./util.js";
 
 /**
  * Typedef imports
@@ -22,7 +23,7 @@ import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, is_bin_op_token, is_lit
  */
 
 
-const MAX_PRECEDENCE = 12;
+const MAX_PRECEDENCE = 17;
 
 
 export class Program {
@@ -86,7 +87,16 @@ export class Program {
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${token_stream.stream}] @ ${token_stream.index}\nAssignments: ${assignments.toString()}\n\nExpr: ${expr.toString("pretty")}`);
+                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\nAssignments: ${assignments.toString()}\nExpr: ${expr.toString("pretty")}`,
+                    {
+                        cause: {
+                            stream: token_stream.stream,
+                            index: token_stream.index,
+                            assignments: assignments,
+                            expr: expr,
+                        }
+                    }
+                );
             }
             return [assignments, expr];
         }
@@ -183,27 +193,30 @@ export class BinOp {
      * @returns {Literal}
      */
     eval(a, b) {
+        if (typeof a == "number" && typeof b == "number") {
+            switch (this.value) {
+                case "+": return a + b;
+                case "-": return a - b;
+                case "*": return a * b;
+                case "/": return b == 0 ? 0 : (a / b) | 0;
+                case "%": return b == 0 ? 0 : a % b;
+                case "^": return a ^ b;
+                case "&": return a & b;
+                case "|": return a | b;
+                case ">>": return a >> b;
+                case "<<": return a << b;
+            }
+        }
+
+        if (typeof a == "boolean" && typeof b == "boolean") {
+            switch (this.value) {
+                case "&&": return a && b;
+                case "||": return a || b;
+                case "^^": return a != b;
+            }
+        }
+
         switch (this.value) {
-            // @ts-ignore
-            case "+": return a + b;
-            // @ts-ignore
-            case "-": return a - b;
-            // @ts-ignore
-            case "*": return a * b;
-            // @ts-ignore
-            case "/": return b == 0 ? 0 : (a / b) | 0;
-            // @ts-ignore
-            case "%": return b == 0 ? 0 : a % b;
-            // @ts-ignore
-            case "^": return a ^ b;
-            // @ts-ignore
-            case "&": return a & b;
-            // @ts-ignore
-            case "|": return a | b;
-            // @ts-ignore
-            case ">>": return a >> b;
-            // @ts-ignore
-            case "<<": return a << b;
             case ">": return a > b;
             case "<": return a < b;
             case ">=": return a >= b;
@@ -211,6 +224,8 @@ export class BinOp {
             case "==": return a == b;
             case "!=": return a != b;
         }
+
+        throw new Error(`Type mismatch: cannot eval ${a} ${this.value} ${b}`);
     }
 
     /**
@@ -235,25 +250,31 @@ export class BinOp {
             case "&": return 9;
             case "^": return 10;
             case "|": return 11;
+            case "&&": return 12;
+            case "^^": return 13;
+            case "||": return 14;
+            case "=": return 16;
+            case ",": return 17;
         }
     }
 
-    /** @return {"left" | "right"} */
-    lexicial_associativity() { return "left"; }
+    /**
+     * @param {number} precedence
+     */
+    static precedence_to_associativity(precedence) {
+        return precedence == 16 ? "right" : "left";
+    }
 
+    can_eval() {
+        return this.value != "=" && this.value != ",";
+    }
+
+    /** @return {"left" | "right"} */
+    lexicial_associativity() {
+        return "=" == this.value ? "right" : "left";
+    }
     is_mathematically_associative() {
-        switch (this.value) {
-            case "+":
-            case "*":
-            case "&":
-            case "^":
-            case "|": return true;
-            case "%":
-            case "/":
-            case "-":
-            case ">>":
-            case "<<": return false;
-        }
+        return ["+", "*", "&", "^", "|", "&&", "||", "^^", "=="].includes(this.value);
     }
 }
 
@@ -412,7 +433,7 @@ export class BinOpExpr {
         let right = this.right.simplify();
 
         if (left instanceof Value && right instanceof Value) {
-            if (left.isLiteral() && right.isLiteral()) {
+            if (left.isLiteral() && right.isLiteral() && this.op.can_eval()) {
                 return new Value(this.op.eval(left.value, right.value));
             }
         }
@@ -582,7 +603,11 @@ export class BinOpExpr {
             case "<=": return require(left_ty, right_ty, ["int", "float"], "bool");
             case "==":
             case "!=": return require(left_ty, right_ty, ["int", "float", "bool"], "bool");
-
+            case "&&":
+            case "||":
+            case "^^": return require(left_ty, right_ty, ["bool"], "bool");
+            case "=":
+            case ",": return "unknown";
         }
 
         /**
@@ -772,7 +797,7 @@ class TokenStream {
             this.consume_one();
             return next_token;
         } else {
-            return new Error(`Expected an identifier, got ${next_token} `);
+            return new Error(`Expected an identifier, got ${next_token}`, { cause: this.debug_info() });
         }
     }
 
@@ -785,7 +810,7 @@ class TokenStream {
             this.consume_one();
             return new Value(next_token);
         } else {
-            return new Error(`Expected literal or identifier, got ${next_token} `);
+            return new Error(`Expected literal or identifier, got ${next_token}`, { cause: this.debug_info() });
         }
 
     }
@@ -796,7 +821,7 @@ class TokenStream {
             this.consume_one();
             return new UnaryOp(next_token);
         } else {
-            return new Error(`Expected a BinOpToken, got ${next_token} `);
+            return new Error(`Expected an UnOpToken, got ${next_token} `, { cause: this.debug_info() });
         }
     }
 
@@ -806,7 +831,7 @@ class TokenStream {
             this.consume_one();
             return new BinOp(next_token);
         } else {
-            return new Error(`Expected a BinOpToken, got ${next_token} `);
+            return new Error(`Expected a BinOpToken, got ${next_token}`, { cause: this.debug_info() });
         }
     }
 
@@ -877,7 +902,7 @@ class TokenStream {
         console.assert(terms.length == ops.length + 1);
 
         const out_term = term_stream(terms, ops);
-        if (out_term instanceof Error) { return out_term; }
+        if (out_term instanceof Error) { out_term.cause = { cause: this.debug_info() }; return out_term; }
         this.commit(stream);
         return out_term;
 
@@ -910,8 +935,10 @@ class TokenStream {
                     console.assert(ops.length == 0, `Expected ops length to be zero, got ${ops} `);
                     return terms[0];
                 }
-                let i = 0;
-                while (i < ops.length) {
+
+                let associativity = BinOp.precedence_to_associativity(current_precedence);
+                let i = associativity == "left" ? 0 : ops.length - 2;
+                while (associativity == "left" ? i < ops.length : i > 0) {
                     if (ops[i].precedence() == current_precedence) {
                         let left_term = terms[i];
                         let right_term = terms[i + 1];
@@ -925,7 +952,7 @@ class TokenStream {
                         // Deliberately stay on the current term/op position--the next op in the 
                         // list has just been shifted into the current position.
                     } else {
-                        i += 1;
+                        i += associativity == "left" ? 1 : -1;
                     }
                 }
             }
@@ -1007,7 +1034,7 @@ class TokenStream {
         if (this.index < this.stream.length) {
             this.index += 1;
         } else {
-            throw new Error(`Cannot consume next token, current: ${this.index}, length: ${this.stream.length} `);
+            throw new Error(`Cannot consume next token, current: ${this.index}, length: ${this.stream.length} `, { cause: this.debug_info() });
         }
     }
 
@@ -1019,7 +1046,7 @@ class TokenStream {
             this.index += 1;
             return null;
         } else {
-            return new Error(`Expected ${token}, got ${this.stream[this.index]} `);
+            return new Error(`Expected ${token}, got ${this.stream[this.index]}`, { cause: this.debug_info() });
         }
     }
 
@@ -1040,6 +1067,16 @@ class TokenStream {
      * @param {TokenStream} other */
     commit(other) {
         this.index = other.index;
+    }
+
+    debug_info() {
+        return {
+            stream: this
+        }
+    }
+
+    toString() {
+        return `${array_to_string(this.stream)} @ ${this.index}`;
     }
 }
 
