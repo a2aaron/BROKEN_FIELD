@@ -28,11 +28,11 @@ const MAX_PRECEDENCE = 17;
 
 export class Program {
     /**
-     * @param {Assign[]} assignments
+     * @param {Declaration[]} declarations
      * @param {Expr} expr
      */
-    constructor(assignments, expr) {
-        this.assignments = assignments;
+    constructor(declarations, expr) {
+        this.declarations = declarations;
         this.expr = expr;
         this.ub_info = this.expr.check_ub();
     }
@@ -47,14 +47,14 @@ export class Program {
             return result;
         }
 
-        const assignments = result[0];
+        const declaration = result[0];
         const expr = result[1];
 
-        return new Program(assignments, expr);
+        return new Program(declaration, expr);
         /**
          * Try to parse a string into an expression.
          * @param {string} bytebeat
-         * @returns {[Assign[], Expr] | Error}
+         * @returns {[Declaration[], Expr] | Error}
          */
         function try_parse(bytebeat) {
             let tokens = tokenize(bytebeat);
@@ -64,22 +64,14 @@ export class Program {
 
             let token_stream = new TokenStream(tokens);
 
-            let assignments = [];
+            let declarations = [];
             while (true) {
-                const assign = token_stream.parse_assign();
-                if (assign instanceof Error) {
+                const declaration = token_stream.parse_declaration();
+                if (declaration instanceof Error) {
+                    console.log("Stopping decl parse", declaration)
                     break;
                 } else {
-                    // check if the assignment is already in the assignment list or not.
-                    assign.is_declaration = true;
-                    for (const other_assign of assignments) {
-                        if (assign.ident.identifier == other_assign.ident.identifier) {
-                            assign.is_declaration = false;
-                            break;
-                        }
-                    }
-
-                    assignments.push(assign);
+                    declarations.push(declaration);
                 }
             }
 
@@ -87,18 +79,18 @@ export class Program {
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\nAssignments: ${assignments.toString()}\nExpr: ${expr.toString("pretty")}`,
+                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\ndeclaration: ${declarations.toString()}\nExpr: ${expr.toString("pretty")}`,
                     {
                         cause: {
                             stream: token_stream.stream,
                             index: token_stream.index,
-                            assignments: assignments,
-                            expr: expr,
+                            declarations,
+                            expr,
                         }
                     }
                 );
             }
-            return [assignments, expr];
+            return [declarations, expr];
         }
     }
 
@@ -108,11 +100,9 @@ export class Program {
      */
     toString(style) {
         let program = "";
-        const type_ctx = this.get_type_ctx();
-        for (const assign of this.assignments ?? []) {
-            const include_type = assign.is_declaration === true;
-            const assign_msg = assign.toString(style, type_ctx, include_type);
-            program += style == "pretty" ? assign_msg + "\n" : assign_msg;
+        for (const declaration of this.declarations ?? []) {
+            const declaration_src = declaration.toString(style);
+            program += style == "pretty" ? declaration_src + "\n" : declaration_src;
         }
         program += this.expr?.toString(style) ?? "";
 
@@ -123,22 +113,24 @@ export class Program {
      * @returns {Program}
      */
     simplify() {
-        let assignments = [];
-        for (const assign of this.assignments) {
-            assignments.push(assign.simplify());
+        let declarations = [];
+        for (const declaration of this.declarations) {
+            declarations.push(declaration.simplify());
         }
         let expr = this.expr.simplify();
-        return new Program(assignments, expr);
+        return new Program(declarations, expr);
     }
 
     /** @returns {TypeContext} */
     get_type_ctx() {
         /** @type {TypeContext} */
         let type_ctx = {};
-        for (const assign of this.assignments) {
-            const ident = assign.ident.identifier;
-            if (!(ident in type_ctx)) {
-                type_ctx[ident] = assign.expr_type(type_ctx);
+        for (const declaration of this.declarations) {
+            for (const assignment of declaration.assignments) {
+                const ident = assignment.ident.identifier;
+                if (!(ident in type_ctx)) {
+                    type_ctx[ident] = assignment.expr_type(type_ctx);
+                }
             }
         }
         return type_ctx;
@@ -253,8 +245,6 @@ export class BinOp {
             case "&&": return 12;
             case "^^": return 13;
             case "||": return 14;
-            case "=": return 16;
-            case ",": return 17;
         }
     }
 
@@ -265,13 +255,9 @@ export class BinOp {
         return precedence == 16 ? "right" : "left";
     }
 
-    can_eval() {
-        return this.value != "=" && this.value != ",";
-    }
-
     /** @return {"left" | "right"} */
     lexicial_associativity() {
-        return "=" == this.value ? "right" : "left";
+        return "left";
     }
     is_mathematically_associative() {
         return ["+", "*", "&", "^", "|", "&&", "||", "^^", "=="].includes(this.value);
@@ -433,7 +419,7 @@ export class BinOpExpr {
         let right = this.right.simplify();
 
         if (left instanceof Value && right instanceof Value) {
-            if (left.isLiteral() && right.isLiteral() && this.op.can_eval()) {
+            if (left.isLiteral() && right.isLiteral()) {
                 return new Value(this.op.eval(left.value, right.value));
             }
         }
@@ -606,8 +592,6 @@ export class BinOpExpr {
             case "&&":
             case "||":
             case "^^": return require(left_ty, right_ty, ["bool"], "bool");
-            case "=":
-            case ",": return "unknown";
         }
 
         /**
@@ -703,43 +687,29 @@ class TernaryOpExpr {
     }
 }
 
-class Assign {
+class Assignment {
     /**
-     * @param {GLSLType | null} type
      * @param {Identifier} ident
      * @param {Expr} expr
-     * @param {boolean | null} is_declaration true if this is a declaration, false if this is a
-     * reassignment, and null if unknown.
      */
-    constructor(type, ident, expr, is_declaration) {
-        this.explicit_type = type;
+    constructor(ident, expr) {
         this.ident = ident;
         this.expr = expr;
-        this.is_declaration = is_declaration;
     }
 
     /**
      * @param {PrintStyle} style
-     * @param {TypeContext} type_ctx
-     * @param {boolean} include_type
      * @returns {string}
      */
-    toString(style, type_ctx, include_type) {
+    toString(style) {
         const ident = this.ident.toString();
         const expr = this.expr.toString(style);
-        const equation = style == "pretty" ? `${ident} = ${expr};` : `${ident}=${expr};`;
-
-        if (include_type) {
-            const type = this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
-            return `${type} ${equation}`;
-        } else {
-            return `${equation}`;
-        }
+        return style == "pretty" ? `${ident} = ${expr}` : `${ident}=${expr}`;
     }
 
     simplify() {
         const expr = this.expr.simplify();
-        return new Assign(this.explicit_type, this.ident, this.expr, this.is_declaration);
+        return new Assignment(this.ident, this.expr);
     }
 
     /**
@@ -747,7 +717,44 @@ class Assign {
      * @returns {GLSLType}
      * */
     expr_type(type_ctx) {
-        return this.explicit_type ? this.explicit_type : this.expr.type(type_ctx);
+        return this.expr.type(type_ctx);
+    }
+}
+
+class Declaration {
+    /**
+     * @param {GLSLType | null} type
+     * @param {Assignment[]} assignments
+     */
+    constructor(type, assignments) {
+        this.explicit_type = type;
+        this.assignments = assignments;
+    }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        let assignments_src = "";
+        for (let i = 0; i < this.assignments.length; i++) {
+            const assignment = this.assignments[i];
+            assignments_src += assignment.toString(style);
+            if (i != this.assignments.length - 1) {
+                assignments_src += style == "pretty" ? ", " : ",";
+            }
+        }
+
+        if (this.explicit_type) {
+            return `${this.explicit_type} ${assignments_src};`;
+        } else {
+            return `${assignments_src};`;
+        }
+    }
+
+    simplify() {
+        const assignments = this.assignments.map((x) => x.simplify());
+        return new Declaration(this.explicit_type, assignments);
     }
 }
 
@@ -758,10 +765,12 @@ class Assign {
  * <literal>  ::= <number> | "true" | "false"
  * <value>    ::= <literal> | <identifier>
  * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
- * <t_stream> ::= <term> (<bin_op> <term>)* 
- * <expr>     ::= <t_stream> ("?" <expr> ":" <expr>)/
- * <assign>   ::= <type>? <ident> "=" <expr> ";"
- * <program>  ::= <assign>* <expr>
+ * <t_stream> ::= <term> (<bin_op> <term>)*
+ * <expr>     ::= <t_stream> ("?" <expr> ":" <expr>)?
+ * <assign>   ::= <ident> "=" <expr>
+ * <a_stream> ::= <assign> ("," <assign>)*
+ * <decl>     ::= <type>? (<ident> | <a_stream>) ";"
+ * <program>  ::= <decl>* <expr>
  * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
  * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
  * 
@@ -902,7 +911,7 @@ class TokenStream {
         console.assert(terms.length == ops.length + 1);
 
         const out_term = term_stream(terms, ops);
-        if (out_term instanceof Error) { out_term.cause = { cause: this.debug_info() }; return out_term; }
+        if (out_term instanceof Error) { out_term.cause = { cause: stream.debug_info() }; return out_term; }
         this.commit(stream);
         return out_term;
 
@@ -993,26 +1002,49 @@ class TokenStream {
         return new TernaryOpExpr(term_stream, true_expr, false_expr);
     }
 
+    /**
+     * @returns {Assignment | Error}
+     */
+    parse_assignment() {
+        let stream = this.copy();
+        const identifier = stream.parse_identifier();
+        if (identifier instanceof Error) { return identifier; }
+
+        const result_eq = stream.try_consume("=");
+        if (result_eq instanceof Error) { return result_eq; }
+
+        const expr = stream.parse_expr();
+        if (expr instanceof Error) { return expr; }
+
+        this.commit(stream);
+        return new Assignment(identifier, expr);
+    }
+
     /** 
      * Consumes tokens from the TokenStream and constructs an Assign
-     * @returns {Assign | Error}
+     * @returns {Declaration | Error}
      */
-    parse_assign() {
+    parse_declaration() {
+        // debugger;
         let stream = this.copy();
 
         const type = stream.try_parse_type();
-        const identifier = stream.parse_identifier();
-        const result_eq = stream.try_consume("=");
-        const expr = stream.parse_expr();
-        const result_semi = stream.try_consume(";");
 
-        if (identifier instanceof Error) { return identifier; }
-        if (result_eq instanceof Error) { return result_eq; }
-        if (expr instanceof Error) { return expr; }
+        let assignments = [];
+        while (true) {
+            const assignment = stream.parse_assignment();
+            if (assignment instanceof Error) { break; }
+            assignments.push(assignment);
+
+            const result_comma = stream.try_consume(",");
+            if (result_comma instanceof Error) { break; }
+        }
+
+        const result_semi = stream.try_consume(";");
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Assign(type, identifier, expr, null);
+        return new Declaration(type, assignments);
     }
 
     /** 

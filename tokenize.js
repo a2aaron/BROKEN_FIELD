@@ -4,18 +4,18 @@
 
 /**
  * @typedef {number | boolean} Literal
- * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "=" | ","} BinOpToken
+ * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" } BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool" | "void"} TypeToken
  * @typedef {"true" | "false"} BoolToken
- * @typedef {"(" | ")" | ";" | ":" | "?" | TypeToken | BoolToken | OpToken } TextualToken
+ * @typedef {"(" | ")" | ";" | ":" | "?" | "=" | "," | TypeToken | BoolToken | OpToken } TextualToken
  * @typedef {TextualToken | Identifier | Literal} Token
  * @typedef {{[ident: string]: GLSLType}} TypeContext
  */
 
 /** @type {BinOpToken[]} */
-const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||", "=", ","];
+const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||"];
 /** @type {UnaryOpToken[]} */
 const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
@@ -28,7 +28,7 @@ const BOOLEANS = ["true", "false"];
 
 /** @type {TextualToken[]} */
 // @ts-ignore
-const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?"]).sort((x, y) => y.length - x.length);
+const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?", "=", ","]).sort((x, y) => y.length - x.length);
 
 export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
