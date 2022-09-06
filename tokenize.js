@@ -7,7 +7,7 @@
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" } BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
- * @typedef {"int" | "float" | "bool" | "void"} TypeToken
+ * @typedef {"int" | "float" | "bool"} TypeToken
  * @typedef {"true" | "false"} BoolToken
  * @typedef {"(" | ")" | ";" | ":" | "?" | "=" | "," | TypeToken | BoolToken | OpToken } TextualToken
  * @typedef {TextualToken | Identifier | Literal} Token
@@ -22,7 +22,7 @@ const UNARY_OPERATORS = ["+", "-", "~", "!"];
 // @ts-ignore
 const OPERATORS = BINARY_OPERATORS.concat(UNARY_OPERATORS);
 /** @type {TypeToken[]} */
-const TYPE_TOKENS = ["int", "float", "bool", "void"];
+const TYPE_TOKENS = ["int", "float", "bool"];
 /** @type {BoolToken[]} */
 const BOOLEANS = ["true", "false"];
 

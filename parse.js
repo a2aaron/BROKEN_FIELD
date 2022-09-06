@@ -100,6 +100,14 @@ export class Program {
      */
     toString(style) {
         let program = "";
+        let type_ctx = this.get_type_ctx();
+        for (let [ident, type] of Object.entries(type_ctx)) {
+            if (ident == "unknown" || ident == "error") {
+                ident = "int";
+            }
+            program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
+        }
+
         for (const declaration of this.declarations ?? []) {
             const declaration_src = declaration.toString(style);
             program += style == "pretty" ? declaration_src + "\n" : declaration_src;
@@ -126,10 +134,17 @@ export class Program {
         /** @type {TypeContext} */
         let type_ctx = {};
         for (const declaration of this.declarations) {
-            for (const assignment of declaration.assign_or_idents) {
-                const ident = assignment.ident.identifier;
-                if (!(ident in type_ctx)) {
-                    type_ctx[ident] = assignment.expr_type(type_ctx);
+            for (const assign_or_ident of declaration.assign_or_idents) {
+                if (assign_or_ident instanceof Identifier) {
+                    const ident = assign_or_ident.identifier;
+                    if (!(ident in type_ctx)) {
+                        type_ctx[ident] = declaration.explicit_type ? declaration.explicit_type : "int";
+                    }
+                } else {
+                    const ident = assign_or_ident.ident.identifier;
+                    if (!(ident in type_ctx)) {
+                        type_ctx[ident] = declaration.explicit_type ? declaration.explicit_type : assign_or_ident.expr_type(type_ctx);
+                    }
                 }
             }
         }
@@ -745,11 +760,7 @@ class Declaration {
             }
         }
 
-        if (this.explicit_type) {
-            return `${this.explicit_type} ${src};`;
-        } else {
-            return `${src};`;
-        }
+        return `${src};`;
     }
 
     simplify() {
