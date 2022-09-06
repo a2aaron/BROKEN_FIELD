@@ -126,7 +126,7 @@ export class Program {
         /** @type {TypeContext} */
         let type_ctx = {};
         for (const declaration of this.declarations) {
-            for (const assignment of declaration.assignments) {
+            for (const assignment of declaration.assign_or_idents) {
                 const ident = assignment.ident.identifier;
                 if (!(ident in type_ctx)) {
                     type_ctx[ident] = assignment.expr_type(type_ctx);
@@ -724,11 +724,11 @@ class Assignment {
 class Declaration {
     /**
      * @param {GLSLType | null} type
-     * @param {Assignment[]} assignments
+     * @param {(Assignment | Identifier)[]} assign_or_idents
      */
-    constructor(type, assignments) {
+    constructor(type, assign_or_idents) {
         this.explicit_type = type;
-        this.assignments = assignments;
+        this.assign_or_idents = assign_or_idents;
     }
 
     /**
@@ -736,25 +736,25 @@ class Declaration {
      * @returns {string}
      */
     toString(style) {
-        let assignments_src = "";
-        for (let i = 0; i < this.assignments.length; i++) {
-            const assignment = this.assignments[i];
-            assignments_src += assignment.toString(style);
-            if (i != this.assignments.length - 1) {
-                assignments_src += style == "pretty" ? ", " : ",";
+        let src = "";
+        for (let i = 0; i < this.assign_or_idents.length; i++) {
+            const assign_or_ident = this.assign_or_idents[i];
+            src += assign_or_ident.toString(style);
+            if (i != this.assign_or_idents.length - 1) {
+                src += style == "pretty" ? ", " : ",";
             }
         }
 
         if (this.explicit_type) {
-            return `${this.explicit_type} ${assignments_src};`;
+            return `${this.explicit_type} ${src};`;
         } else {
-            return `${assignments_src};`;
+            return `${src};`;
         }
     }
 
     simplify() {
-        const assignments = this.assignments.map((x) => x.simplify());
-        return new Declaration(this.explicit_type, assignments);
+        const assign_or_ident = this.assign_or_idents.map((x) => x.simplify());
+        return new Declaration(this.explicit_type, assign_or_ident);
     }
 }
 
@@ -1020,6 +1020,27 @@ class TokenStream {
         return new Assignment(identifier, expr);
     }
 
+    parse_assignment_or_identifier() {
+        {
+            let stream = this.copy();
+            const assignment = stream.parse_assignment();
+            if (assignment instanceof Assignment) {
+                this.commit(stream);
+                return assignment;
+            }
+        }
+        {
+            let stream = this.copy();
+            const identifier = stream.parse_identifier();
+            if (identifier instanceof Identifier) {
+                this.commit(stream);
+                return identifier;
+            } else {
+                return identifier;
+            }
+        }
+    }
+
     /** 
      * Consumes tokens from the TokenStream and constructs an Assign
      * @returns {Declaration | Error}
@@ -1030,11 +1051,11 @@ class TokenStream {
 
         const type = stream.try_parse_type();
 
-        let assignments = [];
+        let assign_or_idents = [];
         while (true) {
-            const assignment = stream.parse_assignment();
-            if (assignment instanceof Error) { break; }
-            assignments.push(assignment);
+            const assign_or_ident = stream.parse_assignment_or_identifier();
+            if (assign_or_ident instanceof Error) { break; }
+            assign_or_idents.push(assign_or_ident);
 
             const result_comma = stream.try_consume(",");
             if (result_comma instanceof Error) { break; }
@@ -1044,7 +1065,7 @@ class TokenStream {
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Declaration(type, assignments);
+        return new Declaration(type, assign_or_idents);
     }
 
     /** 

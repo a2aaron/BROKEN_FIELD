@@ -41,6 +41,7 @@ export class Identifier {
     }
 
     toString() { return this.identifier; }
+    simplify() { return this; }
 
     /**
      * @param {TypeContext} type_ctx 
