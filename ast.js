@@ -25,11 +25,11 @@ import { array_to_string } from "./util.js";
 
 export class Program {
     /**
-     * @param {Declaration[]} declarations
+     * @param {Statement[]} statements
      * @param {Expr} expr
      */
-    constructor(declarations, expr) {
-        this.declarations = declarations;
+    constructor(statements, expr) {
+        this.statements = statements;
         this.expr = expr;
         this.ub_info = this.expr.check_ub();
     }
@@ -44,14 +44,14 @@ export class Program {
             return result;
         }
 
-        const declaration = result[0];
+        const statements = result[0];
         const expr = result[1];
 
-        return new Program(declaration, expr);
+        return new Program(statements, expr);
         /**
          * Try to parse a string into an expression.
          * @param {string} bytebeat
-         * @returns {[Declaration[], Expr] | Error}
+         * @returns {[Statement[], Expr] | Error}
          */
         function try_parse(bytebeat) {
             let tokens = tokenize(bytebeat);
@@ -61,14 +61,14 @@ export class Program {
 
             let token_stream = new TokenStream(tokens);
 
-            let declarations = [];
+            let statements = [];
             while (true) {
-                const declaration = token_stream.parse_declaration();
-                if (declaration instanceof Error) {
-                    console.log("Stopping decl parse", declaration)
+                const statement = token_stream.parse_statement();
+                if (statement instanceof Error) {
+                    console.log("Stopping stmt parse", statement)
                     break;
                 } else {
-                    declarations.push(declaration);
+                    statements.push(statement);
                 }
             }
 
@@ -76,18 +76,18 @@ export class Program {
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\ndeclaration: ${declarations.toString()}\nExpr: ${expr.toString("pretty")}`,
+                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\statements: ${statements.toString()}\nExpr: ${expr.toString("pretty")}`,
                     {
                         cause: {
                             stream: token_stream.stream,
                             index: token_stream.index,
-                            declarations,
+                            statements,
                             expr,
                         }
                     }
                 );
             }
-            return [declarations, expr];
+            return [statements, expr];
         }
     }
 
@@ -105,9 +105,9 @@ export class Program {
             program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
         }
 
-        for (const declaration of this.declarations ?? []) {
-            const declaration_src = declaration.toString(style);
-            program += style == "pretty" ? declaration_src + "\n" : declaration_src;
+        for (const statement of this.statements ?? []) {
+            const statement_src = statement.toString(style);
+            program += style == "pretty" ? statement_src + "\n" : statement_src;
         }
         program += this.expr?.toString(style) ?? "";
 
@@ -118,29 +118,29 @@ export class Program {
      * @returns {Program}
      */
     simplify() {
-        let declarations = [];
-        for (const declaration of this.declarations) {
-            declarations.push(declaration.simplify());
+        let statements = [];
+        for (const statement of this.statements) {
+            statements.push(statement.simplify());
         }
         let expr = this.expr.simplify();
-        return new Program(declarations, expr);
+        return new Program(statements, expr);
     }
 
     /** @returns {TypeContext} */
     get_type_ctx() {
         /** @type {TypeContext} */
         let type_ctx = {};
-        for (const declaration of this.declarations) {
-            for (const assign_or_ident of declaration.assign_or_idents) {
+        for (const statement of this.statements) {
+            for (const assign_or_ident of statement.assign_or_idents) {
                 if (assign_or_ident instanceof Identifier) {
                     const ident = assign_or_ident.identifier;
                     if (!(ident in type_ctx)) {
-                        type_ctx[ident] = declaration.explicit_type ? declaration.explicit_type : "int";
+                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : "int";
                     }
                 } else {
                     const ident = assign_or_ident.ident.identifier;
                     if (!(ident in type_ctx)) {
-                        type_ctx[ident] = declaration.explicit_type ? declaration.explicit_type : assign_or_ident.expr_type(type_ctx);
+                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : assign_or_ident.expr_type(type_ctx);
                     }
                 }
             }
@@ -703,7 +703,7 @@ export class TernaryOpExpr {
     }
 }
 
-export class Assignment {
+export class AssignExpr {
     /**
      * @param {Identifier} ident
      * @param {Expr} expr
@@ -725,7 +725,7 @@ export class Assignment {
 
     simplify() {
         const expr = this.expr.simplify();
-        return new Assignment(this.ident, this.expr);
+        return new AssignExpr(this.ident, this.expr);
     }
 
     /**
@@ -737,10 +737,10 @@ export class Assignment {
     }
 }
 
-export class Declaration {
+export class Statement {
     /**
      * @param {GLSLType | null} type
-     * @param {(Assignment | Identifier)[]} assign_or_idents
+     * @param {(AssignExpr | Identifier)[]} assign_or_idents
      */
     constructor(type, assign_or_idents) {
         this.explicit_type = type;
@@ -766,7 +766,7 @@ export class Declaration {
 
     simplify() {
         const assign_or_ident = this.assign_or_idents.map((x) => x.simplify());
-        return new Declaration(this.explicit_type, assign_or_ident);
+        return new Statement(this.explicit_type, assign_or_ident);
     }
 }
 

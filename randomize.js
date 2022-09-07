@@ -112,7 +112,7 @@ export function mutate_bytebeat(bytebeat) {
     }
 
     let expr = mutate(program.expr, mutate_values, mutate_ops);
-    return new Program(program.declarations, expr).toString("pretty")
+    return new Program(program.statements, expr).toString("pretty")
 
     /**
      * @param {Expr} expr

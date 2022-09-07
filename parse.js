@@ -1,4 +1,4 @@
-import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Assignment, Declaration } from "./ast.js";
+import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, AssignExpr, Statement } from "./ast.js";
 import { Identifier, is_bin_op_token, is_literal, is_type_token, is_un_op_token } from "./tokenize.js";
 import { array_to_string } from "./util.js";
 
@@ -21,8 +21,8 @@ const MAX_PRECEDENCE = 17;
  * <expr>     ::= <t_stream> ("?" <expr> ":" <expr>)?
  * <assign>   ::= <ident> "=" <expr>
  * <a_stream> ::= <assign> ("," <assign>)*
- * <decl>     ::= <type>? (<ident> | <a_stream>) ";"
- * <program>  ::= <decl>* <expr>
+ * <stmt>     ::= <type>? (<ident> | <a_stream>) ";"
+ * <program>  ::= <stmt>* <expr>
  * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
  * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
  * 
@@ -255,7 +255,7 @@ export class TokenStream {
     }
 
     /**
-     * @returns {Assignment | Error}
+     * @returns {AssignExpr | Error}
      */
     parse_assignment() {
         let stream = this.copy();
@@ -269,14 +269,14 @@ export class TokenStream {
         if (expr instanceof Error) { return expr; }
 
         this.commit(stream);
-        return new Assignment(identifier, expr);
+        return new AssignExpr(identifier, expr);
     }
 
     parse_assignment_or_identifier() {
         {
             let stream = this.copy();
             const assignment = stream.parse_assignment();
-            if (assignment instanceof Assignment) {
+            if (assignment instanceof AssignExpr) {
                 this.commit(stream);
                 return assignment;
             }
@@ -295,9 +295,9 @@ export class TokenStream {
 
     /** 
      * Consumes tokens from the TokenStream and constructs an Assign
-     * @returns {Declaration | Error}
+     * @returns {Statement | Error}
      */
-    parse_declaration() {
+    parse_statement() {
         // debugger;
         let stream = this.copy();
 
@@ -317,7 +317,7 @@ export class TokenStream {
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Declaration(type, assign_or_idents);
+        return new Statement(type, assign_or_idents);
     }
 
     /** 
