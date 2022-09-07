@@ -157,20 +157,24 @@ export class UnaryOp {
 
     /**
      * @template {Literal} T
-     * @param {T} a
-     * @returns {T}
+     * @param {Literal} a
+     * @returns {Literal}
      */
     eval(a) {
-        // TODO: how to make this typecheck?
-        switch (this.value) {
-            // @ts-ignore
-            case "+": return +a;
-            // @ts-ignore
-            case "-": return -a;
-            // @ts-ignore
-            case "~": return ~a;
-            // @ts-ignore
-            case "!": return !a;
+        if (typeof a == "number") {
+            switch (this.value) {
+                case "+": return +a;
+                case "-": return -a;
+                case "~": return ~a;
+                case "!": throw new Error(`Type mismatch: cannot eval ${this.value}${a}`);
+            }
+        } else {
+            switch (this.value) {
+                case "+":
+                case "-":
+                case "~": throw new Error(`Type mismatch: cannot eval ${this.value}${a}`);
+                case "!": return !a;
+            }
         }
     }
 
