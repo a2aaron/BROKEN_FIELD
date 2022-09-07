@@ -56,15 +56,16 @@ export class Recorder {
      * @param {number} width
      * @param {number} height
      * @param {number} delay
+     * @param {import("./shader.js").Precision} precision
      */
-    async manual_recording(bytebeat, params, start_t, end_t, width, height, delay) {
+    async manual_recording(bytebeat, params, start_t, end_t, width, height, precision, delay) {
         // Abort the current recording in progress.
         if (this.is_recording()) {
             this.#gif_recorder?.abort();
         }
 
         this.#gif_recorder = new GIFRenderer(this.indicator, this.media_display);
-        this.#gif_recorder.render(bytebeat, width, height, start_t, end_t, params, delay);
+        this.#gif_recorder.render(bytebeat, width, height, start_t, end_t, params, precision, delay);
     }
 }
 
@@ -165,17 +166,21 @@ class GIFRenderer {
      * @param {number} height
      * @param {number} start_t
      * @param {number} end_t
+     * @param {import("./shader.js").Precision} precision
      * @param {import("./shader.js").BytebeatParams} params
      * @param {number} delay
      */
-    async render(bytebeat, width, height, start_t, end_t, params, delay) {
+    async render(bytebeat, width, height, start_t, end_t, params, precision, delay) {
         // Set up the canvas
         let canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         let gl = unwrap(canvas.getContext("webgl2"));
-        let programInfo = compileBytebeat(gl, bytebeat);
-
+        let [programInfo, _fsSource, _parseType] = compileBytebeat(gl, bytebeat, precision);
+        if (programInfo instanceof Error) {
+            this.indicator.show("Can't render--invalid bytebeat!");
+            return;
+        }
         this.is_rendering = true;
 
         // Record all frames
