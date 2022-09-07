@@ -1,11 +1,11 @@
-import { Program } from "./parse.js";
+import { Program } from "./ast.js";
 import { mutate_bytebeat, random_bytebeat } from "./randomize.js";
 import { Recorder } from "./recording.js";
 import { compileBytebeat, get_fragment_shader_source, get_vertex_shader_source, renderBytebeat } from "./shader.js";
 import { getTypedElementById, h, rem_euclid, render_error_messages, RGBColor, unwrap } from "./util.js";
 
 /**
- * @typedef {import("./parse.js").UBInfo} UBInfo
+ * @typedef {import("./ast.js").UBInfo} UBInfo
  */
 
 // HTML elements we wish to attach event handlers to.
@@ -196,7 +196,9 @@ function set_bytebeat(bytebeat) {
 
    parse_info_display.innerText = `Compiled Shader Type: ${compile_type}`;
    if (program instanceof Error) {
-      parse_info_display.innerText += `\nInternal Parser ${program}\nDebug Info: ${program.cause?.stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
+      // @ts-ignore
+      const stream = program.cause?.stream;
+      parse_info_display.innerText += `\nInternal Parser ${program}\nDebug Info: ${stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
    } else {
       parse_info_display.innerText += `\nParsed as: ${program.toString("pretty")}`;
    }

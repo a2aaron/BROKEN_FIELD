@@ -1,4 +1,4 @@
-import { Program } from "./parse.js";
+import { Program } from "./ast.js";
 import { unwrap } from "./util.js";
 
 /**

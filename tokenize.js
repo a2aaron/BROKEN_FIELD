@@ -1,5 +1,5 @@
 /**
- * @typedef {import("./parse").GLSLType} GLSLType
+ * @typedef {import("./ast.js").GLSLType} GLSLType
  */
 
 /**

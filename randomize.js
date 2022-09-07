@@ -1,4 +1,4 @@
-import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program } from "./parse.js";
+import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program } from "./ast.js";
 import { INTEGER_VARIABLES } from "./tokenize.js";
 import { getTypedElementById, isNumber } from "./util.js";
 
