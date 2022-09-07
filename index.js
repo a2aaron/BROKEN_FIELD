@@ -434,9 +434,8 @@ function main() {
       const end_t = parseInt(end_t_input.value);
 
       if (BYTEBEAT_PROGRAM_INFO != null) {
-         let { bytebeat, height, width, precision } = get_ui_parameters();
          // seems that browsers throttle anything under 20ms/frame.
-         recorder.manual_recording(bytebeat, get_bytebeat_parameters(), start_t, end_t, height, width, precision, 20);
+         recorder.manual_recording(get_bytebeat_parameters(), get_ui_parameters(), start_t, end_t, 20);
       } else {
          console.log("Couldn't record--BYTEBEAT_PROGRAM_INFO is null!");
       }

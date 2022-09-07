@@ -49,23 +49,20 @@ export class Recorder {
 
     /**
      * Manually record a GIF.
-     * @param {import("./shader.js").BytebeatParams} params
+     * @param {import("./shader.js").BytebeatParams} bytebeat_params
+     * @param {import("./index.js").Parameters} ui_params
      * @param {number} start_t
      * @param {number} end_t
-     * @param {string} bytebeat
-     * @param {number} width
-     * @param {number} height
      * @param {number} delay
-     * @param {import("./shader.js").Precision} precision
      */
-    async manual_recording(bytebeat, params, start_t, end_t, width, height, precision, delay) {
+    async manual_recording(bytebeat_params, ui_params, start_t, end_t, delay) {
         // Abort the current recording in progress.
         if (this.is_recording()) {
             this.#gif_recorder?.abort();
         }
 
         this.#gif_recorder = new GIFRenderer(this.indicator, this.media_display);
-        this.#gif_recorder.render(bytebeat, width, height, start_t, end_t, params, precision, delay);
+        this.#gif_recorder.render(bytebeat_params, ui_params, start_t, end_t, delay);
     }
 }
 
@@ -161,22 +158,19 @@ class GIFRenderer {
     /**
      * Render the bytebeat with the given paremeters, canvas size, etc. This is an async method
      * and can be aborted by calling the `abort()` method.
-     * @param {string} bytebeat
-     * @param {number} width
-     * @param {number} height
+     * @param {import("./shader.js").BytebeatParams} bytebeat_params
+     * @param {import("./index.js").Parameters} ui_params
+     * @param {number} delay
      * @param {number} start_t
      * @param {number} end_t
-     * @param {import("./shader.js").Precision} precision
-     * @param {import("./shader.js").BytebeatParams} params
-     * @param {number} delay
      */
-    async render(bytebeat, width, height, start_t, end_t, params, precision, delay) {
+    async render(bytebeat_params, ui_params, start_t, end_t, delay) {
         // Set up the canvas
         let canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = ui_params.width;
+        canvas.height = ui_params.height;
         let gl = unwrap(canvas.getContext("webgl2"));
-        let [programInfo, _fsSource, _parseType] = compileBytebeat(gl, bytebeat, precision);
+        let [programInfo, _fsSource, _parseType] = compileBytebeat(gl, ui_params.bytebeat, ui_params.precision);
         if (programInfo instanceof Error) {
             this.indicator.show("Can't render--invalid bytebeat!");
             return;
@@ -188,8 +182,8 @@ class GIFRenderer {
             if (this.aborted) {
                 return;
             }
-            params.time = i;
-            renderBytebeat(gl, programInfo, params);
+            bytebeat_params.time = i;
+            renderBytebeat(gl, programInfo, bytebeat_params);
             this.gif.addFrame(canvas, { copy: true, delay });
             this.indicator.show(`Rendering to GIF... (Frame - ${i - start_t}/${end_t - start_t})`);
             await yieldToEventLoop();
