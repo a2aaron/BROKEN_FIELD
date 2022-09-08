@@ -348,6 +348,7 @@ export class Value {
     simplify() { return this; }
 
     check_ub() { return null; }
+    op_precedence() { return -999; }
 }
 
 export class UnaryOpExpr {
@@ -418,6 +419,9 @@ export class UnaryOpExpr {
             case "!": return value_type == "bool" ? value_type : "error";
         }
     }
+
+    op_precedence() { return this.op.precedence(); }
+    op_value() { return this.op.value; }
 }
 
 export class BinOpExpr {
@@ -669,11 +673,9 @@ export class BinOpExpr {
             return null;
         }
     }
-}
 
-class TernaryOp {
-    constructor() { }
-    precedence() { return 15; }
+    op_precedence() { return this.op.precedence(); }
+    op_value() { return this.op.value; }
 }
 
 export class TernaryOpExpr {
@@ -686,7 +688,6 @@ export class TernaryOpExpr {
         this.cond_expr = cond_expr;
         this.true_expr = true_expr;
         this.false_expr = false_expr;
-        this.op = new TernaryOp();
     }
 
     /**
@@ -694,9 +695,14 @@ export class TernaryOpExpr {
      * @returns {String}
      */
     toString(style) {
-        const cond_src = this.cond_expr.toString(style);
+        let cond_src = this.cond_expr.toString(style);
         const true_src = this.true_expr.toString(style);
         const false_src = this.false_expr.toString(style);
+
+        if (this.cond_expr.op_precedence() >= this.op_precedence()) {
+            cond_src = `(${cond_src})`;
+        }
+
         if (style == "pretty") {
             return `${cond_src} ? ${true_src} : ${false_src}`;
         } else {
@@ -744,6 +750,9 @@ export class TernaryOpExpr {
     check_ub() {
         return null;
     }
+
+    op_precedence() { return 15; }
+    op_value() { return "[ternary]"; }
 }
 
 export class Statement {
@@ -804,20 +813,16 @@ function needs_parenthesis(parent, child, which_child) {
         return false;
     }
 
-    if (child instanceof TernaryOpExpr) {
-        return true;
-    }
-
     // If the child binds more loosely than the parent, but we need the child to bind
     // stronger, use parens
-    if (parent.op.precedence() < child.op.precedence()) {
+    if (parent.op_precedence() < child.op_precedence()) {
         return true;
-    } else if (parent.op.precedence() == child.op.precedence()) {
+    } else if (parent.op_precedence() == child.op_precedence()) {
         // If the parent is a UnaryOp, we only need parenthsis to differentiate ++x from +(+x) and -- from -(-x).
         if (parent instanceof UnaryOpExpr) {
             if (child instanceof UnaryOpExpr) {
-                let plus_plus = parent.op.value == "+" && child.op.value == "+";
-                let minus_minus = parent.op.value == "-" && child.op.value == "-";
+                let plus_plus = parent.op_value() == "+" && child.op_value() == "+";
+                let minus_minus = parent.op_value() == "-" && child.op_value() == "-";
                 return !plus_plus && !minus_minus;
             }
             return false;
@@ -846,7 +851,7 @@ function needs_parenthesis(parent, child, which_child) {
         // We also need the same-operator requirement, because of the example below:
         // For example, a * b * c  = (a * b) * c  = a * (b * c)
         // however,     a + b * c != (a + b) * c != (a + b) * c, even if + had the same precedence as *.
-        return !(parent.op.is_mathematically_associative() && parent.op.value == child.op.value);
+        return !(parent.op.is_mathematically_associative() && parent.op_value() == child.op_value());
     } else {
         return false;
     }
