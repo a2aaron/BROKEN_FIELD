@@ -2,6 +2,8 @@
  * @typedef {import("./ast.js").GLSLType} GLSLType
  */
 
+import { TypeContext } from "./ast.js";
+
 /**
  * @typedef {number | boolean} Literal
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "=" | ","} BinOpToken
@@ -11,7 +13,6 @@
  * @typedef {"true" | "false"} BoolToken
  * @typedef {"(" | ")" | ";" | ":" | "?" | TypeToken | BoolToken | OpToken } TextualToken
  * @typedef {TextualToken | Identifier | Literal} Token
- * @typedef {{[ident: string]: GLSLType}} TypeContext
  */
 
 /** @type {BinOpToken[]} */
@@ -53,14 +54,7 @@ export class Identifier {
         } else if (FLOAT_VARIABLES.includes(this.identifier)) {
             return "float";
         } else {
-            for (const [ident, type] of Object.entries(type_ctx)) {
-                if (ident == this.identifier) {
-                    return type;
-                }
-            }
-            console.log(`cant find ${this.identifier} in type_ctx`);
-            console.log(type_ctx);
-            return "unknown";
+            return type_ctx.lookup(this);
         }
     }
 }

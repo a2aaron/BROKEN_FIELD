@@ -8,7 +8,6 @@ import { array_to_string, unwrap } from "./util.js";
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
  * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
- * @typedef {import("./tokenize.js").TypeContext} TypeContext
  * @typedef {import("./parse.js").Expr} Expr 
  */
 
@@ -22,6 +21,46 @@ import { array_to_string, unwrap } from "./util.js";
  * @typedef {TypeToken | "unknown" | "error"} GLSLType
  * @typedef {"pretty" | "minimal"} PrintStyle
  */
+
+export class TypeContext {
+    constructor() {
+        /**
+         * @type {{[ident: string]: GLSLType}} 
+         */
+        this.types = {};
+    }
+
+    /**
+     * Attempts to add the given identifier/type pair to the TypeContext. If the identifier was 
+     * already added to the TypeContext, nothing is added.
+     * @param {Identifier} identifier
+     * @param {GLSLType} type
+     * @returns {GLSLType | null} returns null if the identifier was added to the TypeContext (so the
+     * identifier was not already in the TypeContext). Otherwise, returns the identifier's existing 
+     * type. If this is non-null, then the TypeContext was not updated.
+     */
+    add_type(identifier, type) {
+        const ident = identifier.identifier;
+        if (this.types[ident]) { return this.types[ident]; }
+        this.types[ident] = type;
+        return null;
+    }
+
+    /**
+     * @param {Identifier} lookup_ident 
+     * @returns {GLSLType}
+     */
+    lookup(lookup_ident) {
+        for (const [ident, type] of Object.entries(this.types)) {
+            if (ident == lookup_ident.identifier) {
+                return type;
+            }
+        }
+        console.log(`cant find ${lookup_ident.identifier} in type_ctx`);
+        console.log(this.types);
+        return "unknown";
+    }
+}
 
 export class Program {
     /**
@@ -98,7 +137,7 @@ export class Program {
     toString(style) {
         let program = "";
         let type_ctx = this.get_type_ctx();
-        for (let [ident, type] of Object.entries(type_ctx)) {
+        for (const [ident, type] of Object.entries(type_ctx.types)) {
             program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
         }
 
@@ -125,22 +164,9 @@ export class Program {
 
     /** @returns {TypeContext} */
     get_type_ctx() {
-        /** @type {TypeContext} */
-        let type_ctx = {};
+        let type_ctx = new TypeContext();
         for (const statement of this.statements) {
-            for (const stmt_expr of statement.exprs) {
-                if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
-                    const ident = stmt_expr.value.identifier;
-                    if (!(ident in type_ctx)) {
-                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : "int";
-                    }
-                } else if (stmt_expr instanceof BinOpExpr && stmt_expr.as_assignment()) {
-                    const { ident, expr } = unwrap(stmt_expr.as_assignment());
-                    if (!(ident in type_ctx)) {
-                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : expr.type(type_ctx);
-                    }
-                }
-            }
+            statement.type(type_ctx);
         }
         return type_ctx;
     }
@@ -578,6 +604,12 @@ export class BinOpExpr {
      * @returns {GLSLType}
      * */
     type(type_ctx) {
+        if (this.op.value == "=") {
+            const { ident, expr } = unwrap(this.as_assignment());
+            const type = expr.type(type_ctx);
+            return type_ctx.add_type(ident, type) ?? type;
+        }
+
         let left_ty = this.left.type(type_ctx);
         let right_ty = this.right.type(type_ctx);
 
@@ -601,7 +633,6 @@ export class BinOpExpr {
             case "&&":
             case "||":
             case "^^": return require(left_ty, right_ty, ["bool"], "bool");
-            case "=": { console.log(this); return right_ty; }
             case ",": return "error";
         }
 
@@ -623,12 +654,12 @@ export class BinOpExpr {
 
     }
     /**
-     * @returns {{ ident: string, expr: Expr } | null} 
+     * @returns {{ ident: Identifier, expr: Expr } | null} 
      */
     as_assignment() {
         if (this.op.value == "=") {
             if (this.left instanceof Value && this.left.value instanceof Identifier) {
-                const ident = this.left.value.identifier;
+                const ident = this.left.value;
                 const expr = this.right;
                 return { ident, expr };
             } else {
@@ -745,6 +776,21 @@ export class Statement {
     simplify() {
         const assign_or_ident = this.exprs.map((x) => x.simplify());
         return new Statement(this.explicit_type, assign_or_ident);
+    }
+
+    /**
+     * @param {TypeContext} type_ctx
+     */
+    type(type_ctx) {
+        for (const stmt_expr of this.exprs) {
+            if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
+                const ident = stmt_expr.value;
+                const type = this.explicit_type ? this.explicit_type : "int";
+                type_ctx.add_type(ident, type)
+            } else {
+                stmt_expr.type(type_ctx);
+            }
+        }
     }
 }
 
