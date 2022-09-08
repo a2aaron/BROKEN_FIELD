@@ -1,5 +1,5 @@
-import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, AssignExpr, Statement } from "./ast.js";
-import { Identifier, is_bin_op_token, is_literal, is_type_token, is_un_op_token } from "./tokenize.js";
+import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement } from "./ast.js";
+import { Identifier, is_simple_bin_op_token, is_literal, is_type_token, is_un_op_token } from "./tokenize.js";
 import { array_to_string } from "./util.js";
 
 const MAX_PRECEDENCE = 17;
@@ -13,22 +13,21 @@ const MAX_PRECEDENCE = 17;
 /**
  * <type>     ::= "int" | "float" | "bool"
  * <un_op>    ::= "+" | "-" | "~" | "!"
- * <bin_op>   ::= "+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "^" | "|"
+ * // <bin_op> does not include "=" or ","
+ * <bin_op>   ::= "+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "^" | "|"...
  * <literal>  ::= <number> | "true" | "false"
  * <value>    ::= <literal> | <identifier>
  * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
  * <t_stream> ::= <term> (<bin_op> <term>)*
- * <expr>     ::= <t_stream> ("?" <expr> ":" <expr>)?
- * <assign>   ::= <ident> "=" <expr>
- * <a_stream> ::= <assign> ("," <assign>)*
- * <stmt>     ::= <type>? (<ident> | <a_stream>) ";"
+ * <simple>   ::= <t_stream> ("?" <expr> ":" <expr>)?
+ * <assign>   ::= <ident> "=" <simple>
+ * <expr>     ::= <assign> | <simple>
+ * <e_stream> ::= <expr> ("," <expr>)*
+ * <stmt>     ::= <type>? (<e_stream>) ";"
  * <program>  ::= <stmt>* <expr>
- * The TokenStream contains a stream of Values, Ops, and strings (anything leftover, in this case
- * open and close parenthesis.) The TokenStream parens this stream into a single BinOp or Value.
  * 
- * A <term>, from the perspective of an <expr>, is a single unit.
- * 
- * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr} Term
+ * @typedef {Expr} Term
+ * @typedef {Expr} SimpleExpr
  * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr} Expr
  * 
  */
@@ -88,7 +87,7 @@ export class TokenStream {
 
     parse_bin_op() {
         const next_token = this.peek();
-        if (is_bin_op_token(next_token)) {
+        if (is_simple_bin_op_token(next_token)) {
             this.consume_one();
             return new BinOp(next_token);
         } else {
@@ -135,8 +134,7 @@ export class TokenStream {
 
 
     /**
-     * Parses <term> (<bin_op> <term>)* and returns an Expr
-     * @returns {Expr | Error}
+     * @returns {Term | Error}
      */
     parse_term_stream() {
         let stream = this.copy();
@@ -147,7 +145,7 @@ export class TokenStream {
         let terms = [first_term];
         let ops = [];
         while (true) {
-            if (!is_bin_op_token(stream.peek())) {
+            if (!is_simple_bin_op_token(stream.peek())) {
                 break;
             }
             const op = stream.parse_bin_op();
@@ -223,10 +221,9 @@ export class TokenStream {
     }
 
     /**
-     * Parses <t_stream> ("?" <expr> ":" <expr>)? and returns an Expr
-     * @returns {Expr | Error}
+     * @returns {SimpleExpr | Error}
      */
-    parse_expr() {
+    parse_simple_expr() {
         let stream = this.copy();
         const term_stream = stream.parse_term_stream();
         if (term_stream instanceof Error) {
@@ -254,8 +251,9 @@ export class TokenStream {
         return new TernaryOpExpr(term_stream, true_expr, false_expr);
     }
 
+
     /**
-     * @returns {AssignExpr | Error}
+     * @returns {Expr | Error}
      */
     parse_assignment() {
         let stream = this.copy();
@@ -265,31 +263,29 @@ export class TokenStream {
         const result_eq = stream.try_consume("=");
         if (result_eq instanceof Error) { return result_eq; }
 
-        const expr = stream.parse_expr();
+        const expr = stream.parse_simple_expr();
         if (expr instanceof Error) { return expr; }
 
         this.commit(stream);
-        return new AssignExpr(identifier, expr);
+        return new BinOpExpr(new Value(identifier), new BinOp("="), expr);
     }
 
-    parse_assignment_or_identifier() {
+    parse_expr() {
         {
             let stream = this.copy();
             const assignment = stream.parse_assignment();
-            if (assignment instanceof AssignExpr) {
+            if (!(assignment instanceof Error)) {
                 this.commit(stream);
                 return assignment;
             }
         }
         {
             let stream = this.copy();
-            const identifier = stream.parse_identifier();
-            if (identifier instanceof Identifier) {
+            const expr = stream.parse_simple_expr();
+            if (!(expr instanceof Error)) {
                 this.commit(stream);
-                return identifier;
-            } else {
-                return identifier;
             }
+            return expr;
         }
     }
 
@@ -303,11 +299,11 @@ export class TokenStream {
 
         const type = stream.try_parse_type();
 
-        let assign_or_idents = [];
+        let exprs = [];
         while (true) {
-            const assign_or_ident = stream.parse_assignment_or_identifier();
-            if (assign_or_ident instanceof Error) { break; }
-            assign_or_idents.push(assign_or_ident);
+            const expr = stream.parse_expr();
+            if (expr instanceof Error) { break; }
+            exprs.push(expr);
 
             const result_comma = stream.try_consume(",");
             if (result_comma instanceof Error) { break; }
@@ -317,7 +313,7 @@ export class TokenStream {
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Statement(type, assign_or_idents);
+        return new Statement(type, exprs);
     }
 
     /** 

@@ -1,6 +1,6 @@
 import { TokenStream } from "./parse.js";
 import { Identifier, is_literal, tokenize } from "./tokenize.js";
-import { array_to_string } from "./util.js";
+import { array_to_string, unwrap } from "./util.js";
 
 /**
  * Typedef imports
@@ -65,14 +65,14 @@ export class Program {
             while (true) {
                 const statement = token_stream.parse_statement();
                 if (statement instanceof Error) {
-                    console.log("Stopping stmt parse", statement)
+                    // console.log("Stopping stmt parse", statement)
                     break;
                 } else {
                     statements.push(statement);
                 }
             }
 
-            const expr = token_stream.parse_expr();
+            const expr = token_stream.parse_simple_expr();
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
@@ -99,9 +99,6 @@ export class Program {
         let program = "";
         let type_ctx = this.get_type_ctx();
         for (let [ident, type] of Object.entries(type_ctx)) {
-            if (ident == "unknown" || ident == "error") {
-                ident = "int";
-            }
             program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
         }
 
@@ -131,16 +128,16 @@ export class Program {
         /** @type {TypeContext} */
         let type_ctx = {};
         for (const statement of this.statements) {
-            for (const assign_or_ident of statement.assign_or_idents) {
-                if (assign_or_ident instanceof Identifier) {
-                    const ident = assign_or_ident.identifier;
+            for (const stmt_expr of statement.exprs) {
+                if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
+                    const ident = stmt_expr.value.identifier;
                     if (!(ident in type_ctx)) {
                         type_ctx[ident] = statement.explicit_type ? statement.explicit_type : "int";
                     }
-                } else {
-                    const ident = assign_or_ident.ident.identifier;
+                } else if (stmt_expr instanceof BinOpExpr && stmt_expr.as_assignment()) {
+                    const { ident, expr } = unwrap(stmt_expr.as_assignment());
                     if (!(ident in type_ctx)) {
-                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : assign_or_ident.expr_type(type_ctx);
+                        type_ctx[ident] = statement.explicit_type ? statement.explicit_type : expr.type(type_ctx);
                     }
                 }
             }
@@ -261,6 +258,8 @@ export class BinOp {
             case "&&": return 12;
             case "^^": return 13;
             case "||": return 14;
+            case "=": return 16;
+            case ",": return 17;
         }
     }
 
@@ -582,12 +581,6 @@ export class BinOpExpr {
         let left_ty = this.left.type(type_ctx);
         let right_ty = this.right.type(type_ctx);
 
-        if (is_unknown_or_error(left_ty)) {
-            return left_ty;
-        } else if (is_unknown_or_error(right_ty)) {
-            return right_ty;
-        }
-
         switch (this.op.value) {
             case "+":
             case "-":
@@ -608,6 +601,8 @@ export class BinOpExpr {
             case "&&":
             case "||":
             case "^^": return require(left_ty, right_ty, ["bool"], "bool");
+            case "=": { console.log(this); return right_ty; }
+            case ",": return "error";
         }
 
         /**
@@ -624,6 +619,23 @@ export class BinOpExpr {
                 }
             }
             return "error";
+        }
+
+    }
+    /**
+     * @returns {{ ident: string, expr: Expr } | null} 
+     */
+    as_assignment() {
+        if (this.op.value == "=") {
+            if (this.left instanceof Value && this.left.value instanceof Identifier) {
+                const ident = this.left.value.identifier;
+                const expr = this.right;
+                return { ident, expr };
+            } else {
+                throw new Error(`Assignment Expr without left-side equal to ident ${this.toString("pretty")}`);
+            }
+        } else {
+            return null;
         }
     }
 }
@@ -703,48 +715,14 @@ export class TernaryOpExpr {
     }
 }
 
-export class AssignExpr {
-    /**
-     * @param {Identifier} ident
-     * @param {Expr} expr
-     */
-    constructor(ident, expr) {
-        this.ident = ident;
-        this.expr = expr;
-    }
-
-    /**
-     * @param {PrintStyle} style
-     * @returns {string}
-     */
-    toString(style) {
-        const ident = this.ident.toString();
-        const expr = this.expr.toString(style);
-        return style == "pretty" ? `${ident} = ${expr}` : `${ident}=${expr}`;
-    }
-
-    simplify() {
-        const expr = this.expr.simplify();
-        return new AssignExpr(this.ident, this.expr);
-    }
-
-    /**
-     * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
-     * */
-    expr_type(type_ctx) {
-        return this.expr.type(type_ctx);
-    }
-}
-
 export class Statement {
     /**
      * @param {GLSLType | null} type
-     * @param {(AssignExpr | Identifier)[]} assign_or_idents
+     * @param {Expr[]} exprs
      */
-    constructor(type, assign_or_idents) {
+    constructor(type, exprs) {
         this.explicit_type = type;
-        this.assign_or_idents = assign_or_idents;
+        this.exprs = exprs;
     }
 
     /**
@@ -753,10 +731,10 @@ export class Statement {
      */
     toString(style) {
         let src = "";
-        for (let i = 0; i < this.assign_or_idents.length; i++) {
-            const assign_or_ident = this.assign_or_idents[i];
+        for (let i = 0; i < this.exprs.length; i++) {
+            const assign_or_ident = this.exprs[i];
             src += assign_or_ident.toString(style);
-            if (i != this.assign_or_idents.length - 1) {
+            if (i != this.exprs.length - 1) {
                 src += style == "pretty" ? ", " : ",";
             }
         }
@@ -765,7 +743,7 @@ export class Statement {
     }
 
     simplify() {
-        const assign_or_ident = this.assign_or_idents.map((x) => x.simplify());
+        const assign_or_ident = this.exprs.map((x) => x.simplify());
         return new Statement(this.explicit_type, assign_or_ident);
     }
 }

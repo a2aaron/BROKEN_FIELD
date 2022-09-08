@@ -4,23 +4,23 @@
 
 /**
  * @typedef {number | boolean} Literal
- * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" } BinOpToken
+ * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "=" | ","} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
  * @typedef {"true" | "false"} BoolToken
- * @typedef {"(" | ")" | ";" | ":" | "?" | "=" | "," | TypeToken | BoolToken | OpToken } TextualToken
+ * @typedef {"(" | ")" | ";" | ":" | "?" | TypeToken | BoolToken | OpToken } TextualToken
  * @typedef {TextualToken | Identifier | Literal} Token
  * @typedef {{[ident: string]: GLSLType}} TypeContext
  */
 
 /** @type {BinOpToken[]} */
-const BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||"];
+const SIMPLE_BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||"];
 /** @type {UnaryOpToken[]} */
 const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
 // @ts-ignore
-const OPERATORS = BINARY_OPERATORS.concat(UNARY_OPERATORS);
+const OPERATORS = SIMPLE_BINARY_OPERATORS.concat(UNARY_OPERATORS, ["=", ","]);
 /** @type {TypeToken[]} */
 const TYPE_TOKENS = ["int", "float", "bool"];
 /** @type {BoolToken[]} */
@@ -28,7 +28,7 @@ const BOOLEANS = ["true", "false"];
 
 /** @type {TextualToken[]} */
 // @ts-ignore
-const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?", "=", ","]).sort((x, y) => y.length - x.length);
+const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?"]).sort((x, y) => y.length - x.length);
 
 export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
@@ -58,6 +58,8 @@ export class Identifier {
                     return type;
                 }
             }
+            console.log(`cant find ${this.identifier} in type_ctx`);
+            console.log(type_ctx);
             return "unknown";
         }
     }
@@ -130,9 +132,9 @@ export function is_literal(token) {
  * @param {Token | null} token
  * @returns {token is BinOpToken}
  */
-export function is_bin_op_token(token) {
+export function is_simple_bin_op_token(token) {
     // @ts-ignore
-    return BINARY_OPERATORS.includes(token);
+    return SIMPLE_BINARY_OPERATORS.includes(token);
 }
 
 
