@@ -325,6 +325,10 @@ function main() {
    })
 
    randomize_button.addEventListener("click", () => {
+      if (getTypedElementById(HTMLInputElement, "randomize-reset-time").checked) {
+         CURRENT_FRAME = get_ui_parameters().time_start;
+      }
+
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       randomize_color();
@@ -332,6 +336,10 @@ function main() {
    })
 
    mutate_button.addEventListener("click", () => {
+      if (getTypedElementById(HTMLInputElement, "randomize-reset-time").checked) {
+         CURRENT_FRAME = get_ui_parameters().time_start;
+      }
+
       add_bytebeat_history(params_to_string(get_ui_parameters()));
 
       set_bytebeat(mutate_bytebeat(bytebeat_textarea.value));
