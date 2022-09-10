@@ -349,6 +349,18 @@ export class Value {
 
     check_ub() { return null; }
     op_precedence() { return -999; }
+
+    /**
+     * @param {Value} a
+     * @param {Value} b
+     */
+    static eq(a, b) {
+        if (a.value instanceof Identifier && b.value instanceof Identifier) {
+            return a.value.identifier == b.value.identifier;
+        } else {
+            return a.value == b.value;
+        }
+    }
 }
 
 export class UnaryOpExpr {
@@ -869,7 +881,7 @@ function is_unknown_or_error(type) {
  */
 function expr_eq(left, right) {
     if (left instanceof Value && right instanceof Value) {
-        return left.value === right.value;
+        return Value.eq(left, right);
     } else if (left instanceof UnaryOpExpr && right instanceof UnaryOpExpr) {
         return left.op === right.op && expr_eq(left.value, right.value);
     } else if (left instanceof BinOpExpr && right instanceof BinOpExpr) {
