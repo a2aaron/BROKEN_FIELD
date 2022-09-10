@@ -274,6 +274,26 @@
       <p>(The vertext shader is extremely boring. it is literally this four-line shader:
       <pre id="vertex-shader-source"></pre>
       </p>
+      <h3>The Internal Parser</h3>
+      <p>A typical program consists of just a GLSL expression. However, BROKEN_FIELD also supports 
+        declaring variables. This is done in typeical GLSL syntax. For example, here is a program
+        using variables:
+        <pre>int foo = sy * sx;
+int bar = 56 ^ mx;
+foo * t + bar
+        </pre>
+        A few extensions to this syntax are provided via the Internal Parser. First,
+        declarations may be elided. If this is done, BROKEN_FIELD will attempt to infer a reasonable
+        type for the variable. Second, types may be automatically coerced using <code>int()</code>,
+        <code>float()</code>, <code>bool()</code> and so on. This is only done if the program does
+        not already compile as normal GLSL. In otherwords, treating the input as GLSL code is 
+        prefered over the Internal Parser when possible. Please note that the Internal Parser probably
+        isn't perfect and doesn't understand all of the possible constructs you can do in GLSL, so
+        there's a good chance it won't work if you use something really tricky with it.
+      </p>
+      <p>You can see what shader code is actually running under the Shader Information dropdown, 
+        which also shows whether or not the code is treated as raw GLSL or was internally parsed. 
+      </p>
     </div>
 </body>
 

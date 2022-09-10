@@ -195,10 +195,15 @@ function set_bytebeat(bytebeat) {
    }
 
    parse_info_display.innerText = `Compiled Shader Type: ${compile_type}`;
+   if (compile_type == "raw") {
+      parse_info_display.innerText += "\n(The currently running shader was not parsed internally--it is used as is.";
+   } else {
+      parse_info_display.innerText += "\n(The currently running shader was not parsed internally--small modifications may have been made to get it to run. See Quick Start Guide for more details)";
+   }
    if (program instanceof Error) {
       // @ts-ignore
       const stream = program.cause?.stream;
-      parse_info_display.innerText += `\nInternal Parser ${program}\nDebug Info: ${stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
+      parse_info_display.innerText += `\nCould not run internal parser.\nInternal Parser ${program}\nDebug Info: ${stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
    } else {
       parse_info_display.innerText += `\nParsed as: ${program.toString("pretty")}`;
    }
