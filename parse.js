@@ -1,4 +1,4 @@
-import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement } from "./ast.js";
+import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement, ExprList } from "./ast.js";
 import { Identifier, is_simple_bin_op_token, is_literal, is_type_token, is_un_op_token } from "./tokenize.js";
 import { array_to_string } from "./util.js";
 
@@ -13,22 +13,25 @@ const MAX_PRECEDENCE = 17;
 /**
  * <type>     ::= "int" | "float" | "bool"
  * <un_op>    ::= "+" | "-" | "~" | "!"
- * // <bin_op> does not include "=" or ","
+ * // <bin_op> does not include "=" or ",". this set only includes the operators that are
+ * // value-producing (that is, you can evaluate them to a value and they do not have side-effects)
  * <bin_op>   ::= "+" | "-" | "*" | "/" | "%" | "<<" | ">>" | "&" | "^" | "|"...
  * <literal>  ::= <number> | "true" | "false"
  * <value>    ::= <literal> | <identifier>
- * <term>     ::= "(" <expr> ")" | <value> | <un_op> <term>
+ * // This is where parenthesis is allowed for expr-recursion
+ * <term>     ::= "(" <expr_list> ")" | <value> | <un_op> <term>
  * <t_stream> ::= <term> (<bin_op> <term>)*
+ * // A "simple" expr is any expr containing a value-producing op
  * <simple>   ::= <t_stream> ("?" <expr> ":" <expr>)?
  * <assign>   ::= <ident> "=" <simple>
  * <expr>     ::= <assign> | <simple>
- * <e_stream> ::= <expr> ("," <expr>)*
- * <stmt>     ::= <type>? (<e_stream>) ";"
+ * <expr_list>::= <expr> ("," <expr>)*
+ * <stmt>     ::= <type>? <expr_list> ";"
  * <program>  ::= <stmt>* <expr>
  * 
  * @typedef {Expr} Term
  * @typedef {Expr} SimpleExpr
- * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr} Expr
+ * @typedef {Value | BinOpExpr | UnaryOpExpr | TernaryOpExpr | ExprList} Expr
  * 
  */
 export class TokenStream {
@@ -106,7 +109,7 @@ export class TokenStream {
 
         if (next_token == "(") {
             token_stream.consume_one();
-            const expr = token_stream.parse_expr();
+            const expr = token_stream.parse_expr_list();
             const result = token_stream.try_consume(")");
 
             if (result instanceof Error) { return result; }
@@ -270,6 +273,7 @@ export class TokenStream {
         return new BinOpExpr(new Value(identifier), new BinOp("="), expr);
     }
 
+    /** @returns {Expr | Error} */
     parse_expr() {
         {
             let stream = this.copy();
@@ -289,31 +293,55 @@ export class TokenStream {
         }
     }
 
+    /** @return { Expr | ExprList | Error } */
+    parse_expr_list() {
+        let stream = this.copy();
+
+        let exprs = [];
+        let error = null;
+        while (true) {
+            const expr = stream.parse_expr();
+            if (expr instanceof Error) {
+                error = expr;
+                break;
+            }
+            exprs.push(expr);
+
+            const result_comma = stream.try_consume(",");
+            if (result_comma instanceof Error) {
+                error = result_comma;
+                break;
+            }
+        }
+
+        if (exprs.length == 0) {
+            return error;
+        } else if (exprs.length == 1) {
+            this.commit(stream);
+            return exprs[0];
+        } else {
+            this.commit(stream);
+            return new ExprList(exprs);
+        }
+    }
+
     /** 
      * Consumes tokens from the TokenStream and constructs an Assign
      * @returns {Statement | Error}
      */
     parse_statement() {
-        // debugger;
         let stream = this.copy();
 
         const type = stream.try_parse_type();
 
-        let exprs = [];
-        while (true) {
-            const expr = stream.parse_expr();
-            if (expr instanceof Error) { break; }
-            exprs.push(expr);
-
-            const result_comma = stream.try_consume(",");
-            if (result_comma instanceof Error) { break; }
-        }
+        let expr = stream.parse_expr_list();
+        if (expr instanceof Error) { return expr; }
 
         const result_semi = stream.try_consume(";");
         if (result_semi instanceof Error) { return result_semi; }
 
         this.commit(stream);
-        return new Statement(type, exprs);
+        return new Statement(type, expr);
     }
 
     /** 

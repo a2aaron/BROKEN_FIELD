@@ -24,10 +24,10 @@ import { array_to_string, unwrap } from "./util.js";
 
 export class TypeContext {
     constructor() {
-        /**
-         * @type {{[ident: string]: GLSLType}} 
-         */
+        /** @type {{[ident: string]: GLSLType}} */
         this.types = {};
+        /** @type {GLSLType} */
+        this.default_type = "int";
     }
 
     /**
@@ -59,6 +59,20 @@ export class TypeContext {
         console.log(`cant find ${lookup_ident.identifier} in type_ctx`);
         console.log(this.types);
         return "unknown";
+    }
+
+    /**
+     * @param {GLSLType} type 
+     */
+    set_default_type(type) {
+        this.default_type = type;
+    }
+
+    /**
+     * @returns {GLSLType}
+     */
+    get_default_type() {
+        return this.default_type;
     }
 }
 
@@ -111,11 +125,11 @@ export class Program {
                 }
             }
 
-            const expr = token_stream.parse_simple_expr();
+            const expr = token_stream.parse_expr_list();
             if (expr instanceof Error) { return expr; }
 
             if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\statements: ${statements.toString()}\nExpr: ${expr.toString("pretty")}`,
+                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\nstatements: ${statements.toString()}\nExpr: ${expr.toString("pretty")}`,
                     {
                         cause: {
                             stream: token_stream.stream,
@@ -145,7 +159,12 @@ export class Program {
             const statement_src = statement.toString(style);
             program += style == "pretty" ? statement_src + "\n" : statement_src;
         }
-        program += this.expr?.toString(style) ?? "";
+
+        let expr_src = this.expr?.toString(style) ?? "";
+        if (this.expr instanceof ExprList) {
+            expr_src = `(${expr_src})`;
+        }
+        program += expr_src;
 
         return program;
     }
@@ -168,6 +187,7 @@ export class Program {
         for (const statement of this.statements) {
             statement.type(type_ctx);
         }
+        this.expr.type(type_ctx);
         return type_ctx;
     }
 }
@@ -767,13 +787,11 @@ export class TernaryOpExpr {
     op_value() { return "[ternary]"; }
 }
 
-export class Statement {
+export class ExprList {
     /**
-     * @param {GLSLType | null} type
      * @param {Expr[]} exprs
      */
-    constructor(type, exprs) {
-        this.explicit_type = type;
+    constructor(exprs) {
         this.exprs = exprs;
     }
 
@@ -784,34 +802,96 @@ export class Statement {
     toString(style) {
         let src = "";
         for (let i = 0; i < this.exprs.length; i++) {
-            const assign_or_ident = this.exprs[i];
-            src += assign_or_ident.toString(style);
+            const expr = this.exprs[i];
+            src += expr.toString(style);
             if (i != this.exprs.length - 1) {
                 src += style == "pretty" ? ", " : ",";
             }
         }
 
-        return `${src};`;
+        return src;
+    }
+
+    /**
+     * @returns {ExprList}
+     */
+    simplify() {
+        const exprs = this.exprs.map((x) => x.simplify());
+        return new ExprList(exprs);
+    }
+
+    /**
+     * @param {TypeContext} type_ctx 
+     * @returns {GLSLType}
+     */
+    type(type_ctx) {
+        for (let i = 0; i < this.exprs.length; i++) {
+            const stmt_expr = this.exprs[i];
+            let type;
+            if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
+                const ident = stmt_expr.value;
+                type_ctx.add_type(ident, type_ctx.get_default_type())
+                type = type_ctx.get_default_type();
+            } else {
+                type = stmt_expr.type(type_ctx);
+            }
+
+            if (i == this.exprs.length - 1) {
+                return type;
+            }
+        }
+        return "error";
+    }
+
+    /**
+     * @returns {UBInfo | null}
+     */
+    check_ub() {
+        for (const expr of this.exprs) {
+            const ub_info = expr.check_ub();
+            if (ub_info) { return ub_info; }
+        }
+        return null;
+    }
+
+    op_precedence() { return 17; }
+    op_value() { return "[comma]"; }
+}
+
+export class Statement {
+    /**
+     * @param {GLSLType | null} type
+     * @param {Expr} expr
+     */
+    constructor(type, expr) {
+        this.explicit_type = type;
+        this.expr = expr;
+    }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        return `${this.expr.toString(style)};`;
     }
 
     simplify() {
-        const assign_or_ident = this.exprs.map((x) => x.simplify());
-        return new Statement(this.explicit_type, assign_or_ident);
+        return new Statement(this.explicit_type, this.expr.simplify());
     }
 
     /**
      * @param {TypeContext} type_ctx
      */
     type(type_ctx) {
-        for (const stmt_expr of this.exprs) {
-            if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
-                const ident = stmt_expr.value;
-                const type = this.explicit_type ? this.explicit_type : "int";
-                type_ctx.add_type(ident, type)
-            } else {
-                stmt_expr.type(type_ctx);
-            }
+        const old_default = type_ctx.get_default_type();
+
+        if (this.explicit_type) {
+            type_ctx.set_default_type(this.explicit_type);
         }
+        this.expr.type(type_ctx);
+
+        type_ctx.set_default_type(old_default);
     }
 }
 
