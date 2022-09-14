@@ -8,7 +8,6 @@ import { array_to_string, unwrap } from "./util.js";
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
  * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
- * @typedef {import("./parse.js").Expr} Expr 
  */
 
 /**
@@ -326,10 +325,49 @@ export class BinOp {
 }
 
 
+export class Expr {
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     * */
+    type(type_ctx) {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * Return if the BinOpExpr definitely has undefined behavior.
+     * @returns {UBInfo | null}
+     */
+    check_ub() {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * @returns {Expr}
+     */
+    simplify() {
+        throw new Error();
+    }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        throw new Error("Not implemented");
+    }
+
+    /** @returns {number} */
+    op_precedence() { throw new Error("Not implemented"); }
+    /** @returns {string} */
+    op_value() { throw new Error("Not implemented"); }
+}
+
 /** @template {Identifier | Literal} [T=Identifier | Literal] */
-export class Value {
+export class Value extends Expr {
     /** @param {T | string} value */
     constructor(value) {
+        super();
         /** @type {T} */
         this.value;
         if (typeof value == "string") {
@@ -383,12 +421,13 @@ export class Value {
     }
 }
 
-export class UnaryOpExpr {
+export class UnaryOpExpr extends Expr {
     /**
      * @param {Expr} value
      * @param {UnaryOp} op
      */
     constructor(value, op) {
+        super();
         this.value = value;
         this.op = op;
     }
@@ -456,13 +495,14 @@ export class UnaryOpExpr {
     op_value() { return this.op.value; }
 }
 
-export class BinOpExpr {
+export class BinOpExpr extends Expr {
     /**
      * @param {Expr} left
      * @param {BinOp} op
      * @param {Expr} right
      */
     constructor(left, op, right) {
+        super();
         this.left = left;
         this.op = op;
         this.right = right;
@@ -710,13 +750,14 @@ export class BinOpExpr {
     op_value() { return this.op.value; }
 }
 
-export class TernaryOpExpr {
+export class TernaryOpExpr extends Expr {
     /**
      * @param {Expr} cond_expr
      * @param {Expr} true_expr
      * @param {Expr} false_expr
      */
     constructor(cond_expr, true_expr, false_expr) {
+        super();
         this.cond_expr = cond_expr;
         this.true_expr = true_expr;
         this.false_expr = false_expr;
@@ -787,11 +828,12 @@ export class TernaryOpExpr {
     op_value() { return "[ternary]"; }
 }
 
-export class ExprList {
+export class ExprList extends Expr {
     /**
      * @param {Expr[]} exprs
      */
     constructor(exprs) {
+        super();
         this.exprs = exprs;
     }
 

@@ -137,6 +137,18 @@ export function assert_html_node(object, type) {
 /**
  * @template ElementType
  * @param {Constructor<ElementType>} ty
+ * @param {any} value
+ * @returns {asserts value is ElementType}
+ */
+export function assertType(value, ty) {
+    if (!(value instanceof ty)) {
+        throw new Error(`Assert failed: Expected value (${value.toString()}) to be type ${ty}, but got ${value.constructor.name} instead.`);
+    }
+}
+
+/**
+ * @template ElementType
+ * @param {Constructor<ElementType>} ty
  * @param {string} id
  * @returns {ElementType}
  */

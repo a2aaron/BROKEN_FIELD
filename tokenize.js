@@ -16,14 +16,14 @@ import { TypeContext } from "./ast.js";
  */
 
 /** @type {BinOpToken[]} */
-const SIMPLE_BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||"];
+export const SIMPLE_BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", ">>", "<<", ">=", "<=", "==", "!=", ">", "<", "&&", "^^", "||"];
 /** @type {UnaryOpToken[]} */
-const UNARY_OPERATORS = ["+", "-", "~", "!"];
+export const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
 // @ts-ignore
 const OPERATORS = SIMPLE_BINARY_OPERATORS.concat(UNARY_OPERATORS, ["=", ","]);
 /** @type {TypeToken[]} */
-const TYPE_TOKENS = ["int", "float", "bool"];
+export const TYPE_TOKENS = ["int", "float", "bool"];
 /** @type {BoolToken[]} */
 const BOOLEANS = ["true", "false"];
 
