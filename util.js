@@ -142,7 +142,7 @@ export function assert_html_node(object, type) {
  */
 export function assertType(value, ty) {
     if (!(value instanceof ty)) {
-        throw new Error(`Assert failed: Expected value (${value.toString()}) to be type ${ty}, but got ${value.constructor.name} instead.`);
+        throw new Error(`Assert failed: Expected value (${value}) to be type ${ty.name}, but got ${value.constructor.name} instead.`);
     }
 }
 

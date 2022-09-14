@@ -1,4 +1,4 @@
-import { TokenStream } from "./parse.js";
+import { RULES, TokenStream } from "./parse.js";
 import { Identifier, is_literal, tokenize } from "./tokenize.js";
 import { array_to_string, unwrap } from "./util.js";
 
@@ -91,56 +91,37 @@ export class Program {
      * @returns {Program | Error}
      */
     static parse(bytebeat) {
-        let result = try_parse(bytebeat);
-        if (result instanceof Error) {
-            return result;
+        let tokens = tokenize(bytebeat);
+        if (tokens instanceof Error) {
+            return tokens;
         }
 
-        const statements = result[0];
-        const expr = result[1];
+        let token_stream = new TokenStream(tokens);
 
-        return new Program(statements, expr);
-        /**
-         * Try to parse a string into an expression.
-         * @param {string} bytebeat
-         * @returns {[Statement[], Expr] | Error}
-         */
-        function try_parse(bytebeat) {
-            let tokens = tokenize(bytebeat);
-            if (tokens instanceof Error) {
-                return tokens;
-            }
+        const result = RULES.program.parse(token_stream);
 
-            let token_stream = new TokenStream(tokens);
-
-            let statements = [];
-            while (true) {
-                const statement = token_stream.parse_statement();
-                if (statement instanceof Error) {
-                    // console.log("Stopping stmt parse", statement)
-                    break;
-                } else {
-                    statements.push(statement);
-                }
-            }
-
-            const expr = token_stream.parse_expr_list();
-            if (expr instanceof Error) { return expr; }
-
-            if (token_stream.peek() != null) {
-                return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}\nstatements: ${statements.toString()}\nExpr: ${expr.toString("pretty")}`,
-                    {
-                        cause: {
-                            stream: token_stream.stream,
-                            index: token_stream.index,
-                            statements,
-                            expr,
-                        }
+        if (token_stream.peek() != null) {
+            return new Error(`TokenStream not empty after parse: [${array_to_string(token_stream.stream)}] @ ${token_stream.index}`,
+                {
+                    cause: {
+                        stream: token_stream.stream,
+                        index: token_stream.index,
+                        result,
                     }
-                );
-            }
-            return [statements, expr];
+                }
+            );
+        } else if (!(result instanceof Program)) {
+            return new Error(`Expected parsed result to be a Program, got ${result?.constructor.name}`,
+                {
+                    cause: {
+                        stream: token_stream.stream,
+                        index: token_stream.index,
+                        result,
+                    }
+                }
+            );
         }
+        return result;
     }
 
     /**
