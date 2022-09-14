@@ -19,9 +19,28 @@ const MAX_PRECEDENCE = 17;
  * @typedef {Expr} Term
  */
 
-
+// If true, print debug information to the console when parsing
 const DEBUG = false;
+// The indent level for the debug print statements.
 let INDENT = 0;
+/**
+ * A ParserRule describes a rule for parsing tokens from the TokenStream. There are two functions
+ * an implementor of ParserRule must implement.
+ * @method parse_impl Don't override the parse method, instead override this. This is the internal parse implementation.
+ * This is wrapped by ParserRule's parse method. It receives a TokenStream and is expected to return
+ * one of four things: 
+ * - A single ASTNode
+ * - Multiple ASTNodes, in an Array
+ * - null, which means "successfully parsed, but did not return any ASTNode(s)"
+ * - An Error, signalling that the ParserRule did not successfully parse the stream
+ * The stream should be copied with stream.copy() and committed to with stream.commit(copied_stream)
+ * The stream should ONLY be committed to if the rule successfully parsed and otherwise should not
+ * (in other words, whenever parse_impl returns an ASTNode, ASTNode[], or null, commit the stream,
+ * otherwise if it returns an Error, do not commit the stream). This is nessecary so that backtracking
+ * can work (not committing the stream on an Error means that the tokens consumed during the failed
+ * parsed are ignored, allowing a higher-level rule to backtrack and choose a different rule)
+ * @method rule_string This is the textual representation of the rule. This should return a string.
+ */
 class ParserRule {
     /**
      * @returns {ParseResult}
@@ -58,6 +77,13 @@ class ParserRule {
     }
 }
 
+/**
+ * The KleeneStar rule. The Kleene Star (written as *) will attempt to apply the wrapped rule as 
+ * many times as possible, which greedily consumes as many tokens as possible. It may succeed between
+ * zero and unlimited times. The Kleene Star rule will return the successful parses in an array. Note
+ * that this array is allowed to be empty (if the wrapped rule succeeds zero times). This also means
+ * that the rule never fails, even if the wrapped rule succeeds zero times.
+ */
 class KleeneStar extends ParserRule {
     /**
      * @param {ParserRule} rule
@@ -97,7 +123,11 @@ class KleeneStar extends ParserRule {
     }
 }
 
-
+/**
+ * The Maybe rule. The Maybe rule (written as ?) will attempt to apply the wrapped rule. If the 
+ * wrapped rule succeeds, it returns the wrapped rule's result. Otherwise, if the wrapped rule fails,
+ * it returns null. This also means that this rule never fails.
+ */
 class MaybeRule extends ParserRule {
     /**
      * @param {ParserRule} rule
@@ -131,8 +161,9 @@ class MaybeRule extends ParserRule {
 
 
 /**
- * A rule which tries to match against a list of rules. The list of rules is evaluated and the first
- * successful rule is used as the given match.
+ * The Sequence rule. This rule wraps a sequential list of rules. It will attempt to parse the token stream against each
+ * rule in order. If any rule fails, the entire SequenceRule is considered to fail. In other words,
+ * this rule succeeds only if every rule it wraps succeeds, and fails if any rule fails to succeed.
  */
 class SequenceRule extends ParserRule {
     /**
@@ -168,7 +199,6 @@ class SequenceRule extends ParserRule {
             }
         }
         stream.commit(copy);
-        // debugger;
         return this.make_node ? this.make_node(nodes) : nodes;
     }
 
@@ -179,8 +209,9 @@ class SequenceRule extends ParserRule {
 }
 
 /**
- * A rule which tries to match against a list of rules. The list of rules is evaluated and the first
- * successful rule is used as the given match.
+ * The Or rule. This rule wraps a sequential list of rules. It will attempt to parse the token stream
+ * against each rule in order. The first rule which succeeds is returned (and the later rules are not run).
+ * In other words, this rule succeeds if any rule it wraps succeeds, and fails if every rule fails to succeed.
  */
 class OrRule extends ParserRule {
     /**
@@ -219,7 +250,8 @@ class OrRule extends ParserRule {
 
 /**
  * A rule which tries to match a single token from the TokenStream. If the token matches, this rule
- * consumes the token.
+ * passes the token to the `func` callback, which should transform the Token into a useful ParseResult.
+ * If `func` succeeds, the token is consumed and the produced ASTNode is returned. Otherwise, the rule fails.
  */
 class MatchOne extends ParserRule {
     /**
@@ -260,6 +292,10 @@ class MatchOne extends ParserRule {
     }
 }
 
+/**
+ * This rule is a convience rule for referring to rules in the global RULES object. When this rule is
+ * executed, it simply looks up the given name in the RULES object and executes the corresponding rule.
+ */
 class LookupRule extends ParserRule {
     /** @param {string} name */
     constructor(name) {
@@ -286,27 +322,44 @@ class LookupRule extends ParserRule {
     }
 }
 
-/** @param {(ParserRule | string)[]} rules */
+/**  
+ * Convience function for creating an OrRule. The rules are a list that will be wrapped in an OrRule
+ * , followed by a KleenStar. If a rule is a bare string, it is assumed to refer to a key in the
+ * RULES object (and hence is wrapped inside of a LookupRule)
+ * @param {(ParserRule | string)[]} rules
+ **/
 function or(...rules) {
     const mapped_rules = rules.map((x) => typeof x == "string" ? new LookupRule(x) : x)
     return new OrRule(mapped_rules);
 }
 
 /** 
+ * Convience function for creating a SequenceRule. `make_node` is an ASTConstructor or null (if null,
+ * the SequenceRule returns the ASTNode array it creates as-is). `rules` is a sequence of rules. If
+ * one of the rules is a bare string, it is assumed to refer to a key in the RULES object (and hence
+ * is wrapped inside of a LookupRule)
  * @param {ASTConstructor | null} make_node
  * @param {(ParserRule | string)[]} rules 
- * */
+ */
 function seq(make_node, ...rules) {
     const mapped_rules = rules.map((x) => typeof x == "string" ? new LookupRule(x) : x)
     return new SequenceRule(mapped_rules, make_node);
 }
 
-/** @param {import("./tokenize.js").TextualToken} rule */
+/** 
+ * Convience function for creating a MatchOne rule. The token is returned as null, so rules consuming
+ * this one will throw away the token after consumption.
+ * @param {import("./tokenize.js").TextualToken} rule
+ **/
 function lit(rule) {
     return new MatchOne((token) => rule === token ? null : new Error(`Expected ${rule}, got ${token}`), `"${rule}"`);
 }
 
 /** 
+ * Convience function for creating a KleenStar. The rules are a list that will be wrapped in a 
+ * SequenceRule, followed by a KleenStar. The SequenceRule will have a null ASTConstructor, so this
+ * rule will return the ASTNode array as is. If a rule is a bare string, it is assumed to refer to a
+ * key in the RULES object (and hence is wrapped inside of a LookupRule).
  * @param {(ParserRule | string)[]} rules 
  */
 function star(...rules) {
@@ -314,6 +367,10 @@ function star(...rules) {
 }
 
 /** 
+ * Convience function for creating a MaybeRule. The rules are a list that will be wrapped in a 
+ * SequenceRule, followed by a MaybeRule. The SequenceRule will have a null ASTConstructor, so this
+ * rule will return the ASTNode array as is. If a rule is a bare string, it is assumed to refer to a
+ * key in the RULES object (and hence is wrapped inside of a LookupRule).
  * @param {(ParserRule | string)[]} rules 
  */
 function maybe(...rules) {
@@ -322,6 +379,7 @@ function maybe(...rules) {
 
 
 /**
+ * The following RULES object encodes the rules below.
  * <type>     ::= "int" | "float" | "bool"
  * <un_op>    ::= "+" | "-" | "~" | "!"
  * // <bin_op> does not include "=" or ",". this set only includes the operators that are
