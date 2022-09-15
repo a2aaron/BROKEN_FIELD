@@ -682,34 +682,34 @@ export class BinOpExpr extends Expr {
             case "-":
             case "*":
             case "/":
-            case "%": return require(left_ty, right_ty, ["int", "float"], "same");
+            case "%": return match_ty(left_ty, right_ty, ["int", "float"], "same");
             case "^":
             case "&":
             case "|":
             case ">>":
-            case "<<": return require(left_ty, right_ty, ["int"], "same");
+            case "<<": return match_ty(left_ty, right_ty, ["int"], "same");
             case ">":
             case "<":
             case ">=":
-            case "<=": return require(left_ty, right_ty, ["int", "float"], "bool");
+            case "<=": return match_ty(left_ty, right_ty, ["int", "float"], "bool");
             case "==":
-            case "!=": return require(left_ty, right_ty, ["int", "float", "bool"], "bool");
+            case "!=": return match_ty(left_ty, right_ty, ["int", "float", "bool"], "bool");
             case "&&":
             case "||":
-            case "^^": return require(left_ty, right_ty, ["bool"], "bool");
+            case "^^": return match_ty(left_ty, right_ty, ["bool"], "bool");
             case ",": return "error";
         }
 
         /**
          * Require that both types equal one of the expected_types, or else return the "error" type
-         * @param {GLSLType} left_type
+         * @param {GLSLType} left_ty
          * @param {GLSLType[]} expected_types
-         * @param {GLSLType} right_type
+         * @param {GLSLType} right_ty
          * @param {GLSLType | "same"} return_type
          */
-        function require(left_type, right_type, expected_types, return_type) {
+        function match_ty(left_ty, right_ty, expected_types, return_type) {
             for (const type of expected_types) {
-                if (left_type == type && right_type == type) {
+                if (left_ty == type && right_ty == type) {
                     return return_type == "same" ? type : return_type;
                 }
             }
