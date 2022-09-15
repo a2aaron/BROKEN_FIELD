@@ -626,12 +626,13 @@ function term_stream(terms, ops) {
 export function debug_parse(bytebeat, rule) {
     DEBUG = true;
     let tokens = tokenize(bytebeat);
+    if (tokens instanceof Error) { throw tokens; }
     // @ts-ignore
     let token_stream = new TokenStream(tokens);
     const result = RULES[rule].parse(token_stream);
     DEBUG = false;
     // @ts-ignore
-    return [RULES[rule].rule_string(), result, token_stream.index, result?.toString("pretty")];
+    return [result, token_stream.index, result?.toString("pretty"), RULES[rule].rule_string()];
 }
 // @ts-ignore
 window.debug_parse = debug_parse;

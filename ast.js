@@ -83,7 +83,14 @@ export class Program {
     constructor(statements, expr) {
         this.statements = statements;
         this.expr = expr;
-        this.ub_info = this.expr.check_ub();
+        try {
+            // check_ub can throw an exception if the program successfully parses but is
+            // semenantically invalid (ex: "false + 1"). This is because check_ub can call
+            // simplify, which can call eval, which throws on illegal input.
+            this.ub_info = this.expr.check_ub();
+        } catch (e) {
+            this.ub_info = null;
+        }
     }
 
     /** 

@@ -1,6 +1,6 @@
 import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program, Expr } from "./ast.js";
 import { INTEGER_VARIABLES } from "./tokenize.js";
-import { choose, getTypedElementById, isNumber } from "./util.js";
+import { choose, getTypedElementById } from "./util.js";
 
 /** 
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
