@@ -335,7 +335,6 @@ export function compileBytebeat(gl, bytebeat, precision) {
     const programInfo = program_info(gl, shaderProgram);
 
     initBuffers(gl);
-
     return [programInfo, fsSource, parse_type];
 }
 

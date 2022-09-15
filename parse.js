@@ -20,7 +20,7 @@ const MAX_PRECEDENCE = 17;
  */
 
 // If true, print debug information to the console when parsing
-const DEBUG = false;
+let DEBUG = false;
 // The indent level for the debug print statements.
 let INDENT = 0;
 /**
@@ -407,7 +407,7 @@ export const RULES = {
     bin_op: new MatchOne(make_bin_op, "<binary operator>"),
     value: new MatchOne(make_value, "<value>"),
     un_op_expr: seq(make_unop_expr,
-        "bin_op", "term"),
+        "un_op", "term"),
     term_stream: seq(make_binop_from_list,
         "term", star("bin_op", "term")),
     term: or(
@@ -624,11 +624,12 @@ function term_stream(terms, ops) {
  * @param {string} rule
  */
 export function debug_parse(bytebeat, rule) {
+    DEBUG = true;
     let tokens = tokenize(bytebeat);
     // @ts-ignore
     let token_stream = new TokenStream(tokens);
     const result = RULES[rule].parse(token_stream);
-
+    DEBUG = false;
     // @ts-ignore
     return [RULES[rule].rule_string(), result, token_stream.index, result?.toString("pretty")];
 }
