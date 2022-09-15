@@ -1,6 +1,6 @@
 import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program, Expr } from "./ast.js";
 import { INTEGER_VARIABLES } from "./tokenize.js";
-import { getTypedElementById, isNumber } from "./util.js";
+import { choose, getTypedElementById, isNumber } from "./util.js";
 
 /** 
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
@@ -9,7 +9,7 @@ import { getTypedElementById, isNumber } from "./util.js";
 
 /** @returns {BinOp} */
 function random_bin_op() {
-    /** @type {import("./tokenize.js").BinOpToken} */
+    /** @type {BinOpToken} */
     let op = choose(
         "+", "-", "*", "/",
         "%", "<<", ">>",
@@ -164,12 +164,3 @@ function allowed_generator_values() {
     return values;
 }
 
-/**
- * @template T
- * @param {T[]} values
- * @returns {T}
- */
-function choose(...values) {
-    let value = values[Math.floor(Math.random() * values.length)];
-    return value;
-}

@@ -290,3 +290,13 @@ export function array_to_string(array) {
     }
     return out + "";
 }
+
+/**
+ * @template T
+ * @param {T[]} values
+ * @returns {T}
+ */
+export function choose(...values) {
+    let value = values[Math.floor(Math.random() * values.length)];
+    return value;
+}
