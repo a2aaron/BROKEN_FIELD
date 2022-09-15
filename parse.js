@@ -558,7 +558,7 @@ function make_program(nodes) {
                 assertType(stmt, Statement);
                 return stmt;
             });
-        const expr = nodes.slice(-1);
+        const expr = nodes[nodes.length - 1];
         assertType(expr, Expr);
         return new Program(statements, expr);
     }
