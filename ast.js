@@ -260,7 +260,6 @@ export class UnaryOp {
     toString() { return this.value; }
 
     /**
-     * @template {Literal} T
      * @param {Literal} a
      * @returns {Literal}
      */
@@ -427,19 +426,20 @@ export class OpExpr extends Expr {
     op_value() { throw new Error("Not implemented"); }
 }
 
-/** @template {Identifier | Literal} [T=Identifier | Literal] */
 export class Value extends Expr {
-    /** @param {T | string} value */
+    /** @param {string | Identifier | Literal} value */
     constructor(value) {
         super();
-        /** @type {T} */
-        this.value;
-        if (typeof value == "string") {
-            // @ts-ignore
-            this.value = new Identifier(value);
+        if (value === true) {
+            this.value = "true";
+        } else if (value === false) {
+            this.value = "false";
+        } else if (typeof value === "number") {
+            this.value = value.toString();
         } else {
             this.value = value;
         }
+
     }
 
     /**
@@ -449,25 +449,32 @@ export class Value extends Expr {
     type(type_ctx) {
         if (this.value instanceof Identifier) {
             return this.value.type(type_ctx);
-        } else if (typeof this.value == "number") {
-            const type = Number.isInteger(this.value) ? "int" : "float";
-            return TypeResult.ok(type);
-        } else if (typeof this.value == "boolean") {
+        } else if (this.value === "true" || this.value === "false") {
             return TypeResult.ok("bool");
+        } else if (!isNaN(Number(this.value))) {
+            if (this.value.includes(".")) {
+                return TypeResult.ok("float");
+            } else {
+                return TypeResult.ok("int");
+            }
         }
         throw new Error(`expected value to be an int, float, bool, or identifier. Got ${this.value}`);
     }
 
-    /** @returns {this is Value<Literal>} */
-    isLiteral() {
-        return is_literal(this.value);
+    /** @returns {Literal | null} */
+    asLiteral() {
+        if (this.value instanceof Identifier) { return null; }
+        else if (this.value === "true") { return true; }
+        else if (this.value === "false") { return false; }
+        else if (!isNaN(Number(this.value))) { return Number(this.value); }
+        else { throw new Error(`expected value to be an int, float, bool, or identifier. Got ${this.value}`); }
     }
 
     toString() {
         return this.value.toString();
     }
 
-    /** @returns {Value<T>} */
+    /** @returns {Value} */
     simplify() { return this; }
 
     check_ub() { return null; }
@@ -514,8 +521,9 @@ export class UnaryOpExpr extends OpExpr {
     simplify() {
         let value = this.value.simplify();
         if (value instanceof Value) {
-            if (value.isLiteral()) {
-                return new Value(this.op.eval(value.value));
+            const literal = value.asLiteral();
+            if (literal != null) {
+                return new Value(this.op.eval(literal));
             }
         }
 
@@ -602,8 +610,10 @@ export class BinOpExpr extends OpExpr {
         let right = this.right.simplify();
 
         if (left instanceof Value && right instanceof Value) {
-            if (left.isLiteral() && right.isLiteral()) {
-                return new Value(this.op.eval(left.value, right.value));
+            const left_lit = left.asLiteral();
+            const right_lit = right.asLiteral();
+            if (left_lit && right_lit) {
+                return new Value(this.op.eval(left_lit, right_lit));
             }
         }
 
@@ -874,10 +884,10 @@ export class TernaryOpExpr extends OpExpr {
      * @returns {Expr}
      */
     simplify() {
-        let cond = this.cond_expr.simplify();
-        if (cond instanceof Value && cond.value === true) {
+        const cond = this.cond_expr.simplify();
+        if (cond instanceof Value && cond.asLiteral() === true) {
             return this.true_expr.simplify();
-        } else if (cond instanceof Value && cond.value === false) {
+        } else if (cond instanceof Value && cond.asLiteral() === false) {
             return this.false_expr.simplify()
         } else {
             return new TernaryOpExpr(cond, this.true_expr.simplify(), this.false_expr.simplify());
@@ -1187,7 +1197,9 @@ function expr_eq(left, right) {
 function expr_extract_value(expr) {
     let simple_expr = expr.simplify();
     if (simple_expr instanceof Value) {
-        return simple_expr.value;
+        // @ts-ignore (safe because the only time when .value is a string is if it is a literal and 
+        // otherwise is always an identifier)
+        return simple_expr.asLiteral() ?? simple_expr.value;
     } else {
         return null;
     }

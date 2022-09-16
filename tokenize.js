@@ -173,11 +173,11 @@ function try_consume_number(input) {
     let number = "";
     for (let i = 0; i < input.length; i++) {
         let this_char = input[i];
-        if (!isNaN(parseInt(this_char))) {
+        if (!isNaN(Number(number + this_char))) {
             number += this_char;
         } else {
             break;
         }
     }
-    return number == "" ? null : { value: parseInt(number), tokens_consumed: number.length };
+    return number == "" ? null : { value: Number(number), tokens_consumed: number.length };
 }
