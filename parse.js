@@ -1,11 +1,12 @@
 import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement, ExprList, Expr, Program } from "./ast.js";
 import { Identifier, is_simple_bin_op_token, is_literal, is_type_token, is_un_op_token, tokenize } from "./tokenize.js";
-import { array_to_string, assertType, unwrap } from "./util.js";
+import { array_to_string, assertType } from "./util.js";
 
 const MAX_PRECEDENCE = 17;
 
 /**
  * Typedef imports
+ * @typedef {import("./tokenize.js").TextualToken} TextualToken 
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
  * @typedef {import("./tokenize.js").Literal} Literal
  * @typedef {import("./tokenize.js").Token} Token
@@ -349,7 +350,7 @@ function seq(make_node, ...rules) {
 /** 
  * Convience function for creating a MatchOne rule. The token is returned as null, so rules consuming
  * this one will throw away the token after consumption.
- * @param {import("./tokenize.js").TextualToken} rule
+ * @param {TextualToken} rule
  **/
 function lit(rule) {
     return new MatchOne((token) => rule === token ? null : new Error(`Expected ${rule}, got ${token}`), `"${rule}"`);
