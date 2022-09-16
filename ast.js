@@ -612,7 +612,7 @@ export class BinOpExpr extends OpExpr {
         if (left instanceof Value && right instanceof Value) {
             const left_lit = left.asLiteral();
             const right_lit = right.asLiteral();
-            if (left_lit && right_lit) {
+            if (left_lit != null && right_lit != null) {
                 return new Value(this.op.eval(left_lit, right_lit));
             }
         }
@@ -1043,20 +1043,21 @@ export class FunctionCall extends Expr {
      */
     try_eval() {
         const value = extract_one(this.args.exprs);
-        if (value instanceof Value) {
+        if (value instanceof Value && value.asLiteral() != null) {
+            const literal = value.asLiteral();
             let int_value;
             let float_value;
             let bool_value;
-            if (typeof value.value == "number") {
-                int_value = Math.trunc(value.value);
-                float_value = value.value;
-                bool_value = value.value != 0;
-            } else if (typeof value.value == "boolean") {
-                int_value = value.value ? 1 : 0;
-                float_value = value.value ? 1.0 : 0.0;
-                bool_value = value.value;
+            if (typeof literal == "number") {
+                int_value = Math.trunc(literal);
+                float_value = literal;
+                bool_value = literal != 0;
+            } else if (typeof literal == "boolean") {
+                int_value = literal ? 1 : 0;
+                float_value = literal ? 1.0 : 0.0;
+                bool_value = literal;
             } else {
-                throw new Error(`Unknown typeof ${typeof value.value} `);
+                throw new Error(`Unknown typeof ${typeof literal} `);
             }
 
             switch (this.identifier.identifier) {
