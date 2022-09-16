@@ -1,5 +1,14 @@
-echo "let document = {}; document.getElementById = function(/** @type {string} */ id) { return null; }" > out.js
-echo "let window = {};" >> out.js
+echo "let document = {};
+document.getElementById = /** @returns {HTMLElement}} */ function (/** @type {string} */ id) {
+    // @ts-ignore
+    return {};
+};
+
+document.createElement = /** @returns {HTMLElement}} */ function (/** @type {string} */ tag) {
+    // @ts-ignore
+    return {};
+}
+let window = {};" > out.js
 cat ../tokenize.js ../parse.js ../ast.js ../util.js >> out.js
 sed -i '' '/import/d' out.js
 sed -i '' 's/^export //' out.js
