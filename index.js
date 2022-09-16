@@ -179,7 +179,7 @@ function set_bytebeat(bytebeat) {
 
    const [programInfo, fsSource, compile_type] = compileBytebeat(gl, bytebeat, get_ui_parameters().precision);
    shader_source_textarea.value = fsSource;
-   const program = Program.parse(bytebeat);
+   PARSE_INFO = Program.parse(bytebeat);
    if (programInfo instanceof Error) {
       render_error_messages(programInfo);
       BYTEBEAT_PROGRAM_INFO = null;
@@ -187,7 +187,6 @@ function set_bytebeat(bytebeat) {
    } else {
       render_error_messages();
       BYTEBEAT_PROGRAM_INFO = programInfo;
-      PARSE_INFO = program;
       LAST_FRAME_TIME = Date.now();
 
       let ub_info = PARSE_INFO instanceof Program ? PARSE_INFO.ub_info : null;
@@ -200,12 +199,12 @@ function set_bytebeat(bytebeat) {
    } else {
       parse_msg += "\n(The currently running shader was not parsed internally--small modifications may have been made to get it to run. See Quick Start Guide for more details)";
    }
-   if (program instanceof Error) {
+   if (PARSE_INFO instanceof Error) {
       // @ts-ignore
-      const stream = program.cause?.stream;
-      parse_msg += `\nCould not run internal parser.\nInternal Parser ${program}\nDebug Info: ${stream}\n${JSON.stringify(program.cause, undefined, 2)}`;
+      const stream = PARSE_INFO.cause?.stream;
+      parse_msg += `\nCould not run internal parser.\nInternal Parser ${PARSE_INFO}\nDebug Info: ${stream}\n${JSON.stringify(PARSE_INFO.cause, undefined, 2)}`;
    } else {
-      parse_msg += `\nParsed as: ${program.toString("pretty")}`;
+      parse_msg += `\nParsed as: ${PARSE_INFO.toString("pretty")}`;
    }
    parse_info_display.innerText = parse_msg;
 
