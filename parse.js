@@ -1,4 +1,4 @@
-import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement, ExprList, Expr, Program } from "./ast.js";
+import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement, ExprList, Expr, Program, FunctionCall } from "./ast.js";
 import { Identifier, is_simple_bin_op_token, is_literal, is_type_token, is_un_op_token, tokenize } from "./tokenize.js";
 import { array_to_string, assertType } from "./util.js";
 
@@ -409,11 +409,13 @@ export const RULES = {
     value: new MatchOne(make_value, "<value>"),
     un_op_expr: seq(make_unop_expr,
         "un_op", "term"),
+    func_call: seq(make_func_call, or("type", "identifier"), lit("("), "expr_list", lit(")")),
     term_stream: seq(make_binop_from_list,
         "term", star("bin_op", "term")),
     term: or(
         "value",
         "un_op_expr",
+        "func_call",
         seq(null,
             lit("("), "expr_list", lit(")"))),
     simple: seq(maybe_make_ternary,
@@ -513,7 +515,28 @@ function make_assign(nodes) {
     } else {
         throw new Error(`Expected nodes to be length 1 or 2, got ${nodes.length}`);
     }
+}
 
+/** @param {ASTNode[]} nodes */
+function make_func_call(nodes) {
+    if (nodes.length == 2) {
+        let [identifier, args] = nodes;
+
+        if (typeof identifier == "string" && is_type_token(identifier)) {
+            identifier = new Identifier(identifier);
+        }
+
+        if (args instanceof Expr && !(args instanceof ExprList)) {
+            args = new ExprList([args]);
+        }
+
+        assertType(identifier, Identifier);
+        assertType(args, ExprList);
+
+        return new FunctionCall(identifier, args);
+    } else {
+        throw new Error(`Expected nodes to be length 2, got ${nodes.length}`);
+    }
 }
 
 /** @param {ASTNode[]} nodes */

@@ -344,7 +344,9 @@ export class Expr {
     toString(style) {
         throw new Error("Not implemented");
     }
+}
 
+export class OpExpr extends Expr {
     /** @returns {number} */
     op_precedence() { throw new Error("Not implemented"); }
     /** @returns {string} */
@@ -394,7 +396,6 @@ export class Value extends Expr {
     simplify() { return this; }
 
     check_ub() { return null; }
-    op_precedence() { return -999; }
 
     /**
      * @param {Value} a
@@ -409,7 +410,7 @@ export class Value extends Expr {
     }
 }
 
-export class UnaryOpExpr extends Expr {
+export class UnaryOpExpr extends OpExpr {
     /**
      * @param {Expr} value
      * @param {UnaryOp} op
@@ -483,7 +484,7 @@ export class UnaryOpExpr extends Expr {
     op_value() { return this.op.value; }
 }
 
-export class BinOpExpr extends Expr {
+export class BinOpExpr extends OpExpr {
     /**
      * @param {Expr} left
      * @param {BinOp} op
@@ -738,7 +739,7 @@ export class BinOpExpr extends Expr {
     op_value() { return this.op.value; }
 }
 
-export class TernaryOpExpr extends Expr {
+export class TernaryOpExpr extends OpExpr {
     /**
      * @param {Expr} cond_expr
      * @param {Expr} true_expr
@@ -760,7 +761,7 @@ export class TernaryOpExpr extends Expr {
         const true_src = this.true_expr.toString(style);
         const false_src = this.false_expr.toString(style);
 
-        if (this.cond_expr.op_precedence() >= this.op_precedence()) {
+        if (this.cond_expr instanceof OpExpr && this.cond_expr.op_precedence() >= this.op_precedence()) {
             cond_src = `(${cond_src})`;
         }
 
@@ -816,7 +817,7 @@ export class TernaryOpExpr extends Expr {
     op_value() { return "[ternary]"; }
 }
 
-export class ExprList extends Expr {
+export class ExprList extends OpExpr {
     /**
      * @param {Expr[]} exprs
      */
@@ -888,6 +889,97 @@ export class ExprList extends Expr {
     op_value() { return "[comma]"; }
 }
 
+export class FunctionCall extends Expr {
+    /**
+     * @param {Identifier} identifier
+     * @param {ExprList} args
+     */
+    constructor(identifier, args) {
+        super();
+        this.identifier = identifier;
+        this.args = args;
+    }
+
+    /**
+     * @param {TypeContext} type_ctx
+     * @returns {GLSLType}
+     */
+    type(type_ctx) {
+        this.args.type(type_ctx);
+        switch (this.identifier.identifier) {
+            case "int": return "int";
+            case "float": return "float";
+            case "bool": return "bool";
+        }
+        return "unknown";
+    }
+
+    /**
+     * Return if the BinOpExpr definitely has undefined behavior.
+     * @returns {UBInfo | null}
+     */
+    check_ub() {
+        return this.args.check_ub();
+    }
+
+    /**
+     * @returns {Expr}
+     */
+    simplify() {
+        const eval_result = this.try_eval();
+        if (eval_result) {
+            return eval_result;
+        }
+        return new FunctionCall(this.identifier, this.args.simplify())
+    }
+
+    /**
+     * @param {PrintStyle} style
+     * @returns {string}
+     */
+    toString(style) {
+        return `${this.identifier.toString()}(${this.args.toString(style)})`;
+    }
+
+    /**
+     * @returns {Value | null}
+     */
+    try_eval() {
+        const value = extract_one(this.args.exprs);
+        if (value instanceof Value) {
+            let int_value;
+            let float_value;
+            let bool_value;
+            if (typeof value.value == "number") {
+                int_value = Math.trunc(value.value);
+                float_value = value.value;
+                bool_value = value.value != 0;
+            } else if (typeof value.value == "boolean") {
+                int_value = value.value ? 1 : 0;
+                float_value = value.value ? 1.0 : 0.0;
+                bool_value = value.value;
+            } else {
+                throw new Error(`Unknown typeof ${typeof value.value}`);
+            }
+
+            switch (this.identifier.identifier) {
+                case "int": return new Value(int_value);
+                case "float": return new Value(float_value);
+                case "bool": return new Value(bool_value);
+            }
+        }
+
+        return null;
+
+        /**
+         * @param {Expr[]} values 
+         */
+        function extract_one(values) {
+            return values.length == 1 ? values[0] : null;
+        }
+    }
+}
+
 export class Statement {
     /**
      * @param {GLSLType | null} type
@@ -931,7 +1023,9 @@ export class Statement {
  * @param {"left" | "right"} which_child
  */
 function needs_parenthesis(parent, child, which_child) {
-    if (child instanceof Value) {
+    // If the child is not an OpExpr, then it's a single "atom" and never needs parenthesis
+    // Currently this implies that child is a Value or a FunctionCall, which never needs parenthesis.
+    if (!(child instanceof OpExpr)) {
         return false;
     }
 
