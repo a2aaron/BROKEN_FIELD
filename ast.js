@@ -21,12 +21,75 @@ import { array_to_string, unwrap } from "./util.js";
  * @typedef {"pretty" | "minimal"} PrintStyle
  */
 
+export class TypeResult {
+    /**
+     * @param {GLSLType} type 
+     * @param {Error[]} errors 
+     */
+    constructor(type, errors) {
+        this.type = type;
+        this.errors = errors;
+    }
+
+    is_err() {
+        return this.type == "unknown" || this.type == "error";
+    }
+
+    /**
+     * Expect this type to equal the passed type. Otherwise, return
+     * @param {GLSLType | GLSLType[]} type
+     * @param {string} error
+     * @returns {TypeResult}
+     */
+    expect(type, error) {
+        if (type instanceof Array && type.includes(this.type)) {
+            return this;
+        } else if (typeof type == "string" && type === this.type) {
+            return this;
+        }
+
+        return TypeResult.err(error);
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.type;
+    }
+
+    /**
+     * Convience function for returning an okay TypeResult
+     * @param {GLSLType} type
+     */
+    static ok(type) {
+        return new TypeResult(type, []);
+    }
+
+    /**
+     * Convience function for returning an unknown TypeResult
+     * @param {string} error
+     */
+    static unknown(error) {
+        return new TypeResult("unknown", [new Error(error)]);
+    }
+
+    /**
+     * Convience function for returning an error TypeResult
+     * @param {string} error
+     */
+    static err(error) {
+        return new TypeResult("error", [new Error(error)]);
+    }
+}
+
 export class TypeContext {
     constructor() {
-        /** @type {{[ident: string]: GLSLType}} */
+        /** @type {{[ident: string]: {type: GLSLType, explicitly_declared: boolean}}} */
         this.types = {};
         /** @type {GLSLType} */
         this.default_type = "int";
+        this.explicitly_typed = false;
     }
 
     /**
@@ -34,30 +97,35 @@ export class TypeContext {
      * already added to the TypeContext, nothing is added.
      * @param {Identifier} identifier
      * @param {GLSLType} type
-     * @returns {GLSLType | null} returns null if the identifier was added to the TypeContext (so the
-     * identifier was not already in the TypeContext). Otherwise, returns the identifier's existing 
-     * type. If this is non-null, then the TypeContext was not updated.
+     * @returns {TypeResult | null} returns null if the identifier was added to the TypeContext (so the
+    identifier was not already in the TypeContext). Otherwise, returns the identifier's existing 
+    type. If this is non-null, then the TypeContext was not updated.
      */
     add_type(identifier, type) {
         const ident = identifier.identifier;
-        if (this.types[ident]) { return this.types[ident]; }
-        this.types[ident] = type;
+        if (this.types[ident]) { return TypeResult.ok(this.types[ident].type); }
+        this.types[ident] = { type, explicitly_declared: this.explicitly_typed };
         return null;
     }
 
     /**
      * @param {Identifier} lookup_ident 
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      */
     lookup(lookup_ident) {
         for (const [ident, type] of Object.entries(this.types)) {
             if (ident == lookup_ident.identifier) {
-                return type;
+                return TypeResult.ok(type.type);
             }
         }
-        console.log(`cant find ${lookup_ident.identifier} in type_ctx`);
-        console.log(this.types);
-        return "unknown";
+        return TypeResult.unknown(`Cant find ${lookup_ident.identifier} in type_ctx`);
+    }
+
+    /**
+     * @param {boolean} value
+     */
+    set_explicitly_typed(value) {
+        this.explicitly_typed = value;
     }
 
     /**
@@ -83,6 +151,21 @@ export class Program {
     constructor(statements, expr) {
         this.statements = statements;
         this.expr = expr;
+
+        // Perform type checking
+        this.type_ctx = new TypeContext();
+        this.type_errors = [];
+        for (const statement of this.statements) {
+            const stmt_type = statement.type(this.type_ctx);
+            if (stmt_type.is_err()) {
+                this.type_errors.push(stmt_type);
+            }
+        }
+        const expr_type = this.expr.type(this.type_ctx);
+        if (expr_type.is_err()) {
+            this.type_errors.push(expr_type);
+        }
+
         try {
             // check_ub can throw an exception if the program successfully parses but is
             // semenantically invalid (ex: "false + 1"). This is because check_ub can call
@@ -137,9 +220,10 @@ export class Program {
      */
     toString(style) {
         let program = "";
-        let type_ctx = this.get_type_ctx();
-        for (const [ident, type] of Object.entries(type_ctx.types)) {
-            program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
+        for (const [ident, { type, explicitly_declared }] of Object.entries(this.type_ctx.types)) {
+            if (!explicitly_declared) {
+                program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
+            }
         }
 
         for (const statement of this.statements ?? []) {
@@ -166,16 +250,6 @@ export class Program {
         }
         let expr = this.expr.simplify();
         return new Program(statements, expr);
-    }
-
-    /** @returns {TypeContext} */
-    get_type_ctx() {
-        let type_ctx = new TypeContext();
-        for (const statement of this.statements) {
-            statement.type(type_ctx);
-        }
-        this.expr.type(type_ctx);
-        return type_ctx;
     }
 }
 
@@ -316,7 +390,7 @@ export class BinOp {
 export class Expr {
     /**
      * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      * */
     type(type_ctx) {
         throw new Error("Not implemented");
@@ -370,17 +444,18 @@ export class Value extends Expr {
 
     /**
      * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      * */
     type(type_ctx) {
         if (this.value instanceof Identifier) {
             return this.value.type(type_ctx);
         } else if (typeof this.value == "number") {
-            return Number.isInteger(this.value) ? "int" : "float";
+            const type = Number.isInteger(this.value) ? "int" : "float";
+            return TypeResult.ok(type);
         } else if (typeof this.value == "boolean") {
-            return "bool";
+            return TypeResult.ok("bool");
         }
-        return "unknown";
+        throw new Error(`expected value to be an int, float, bool, or identifier. Got ${this.value}`);
     }
 
     /** @returns {this is Value<Literal>} */
@@ -464,20 +539,22 @@ export class UnaryOpExpr extends OpExpr {
 
     /**
      * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      * */
     type(type_ctx) {
         let value_type = this.value.type(type_ctx);
-        if (is_unknown_or_error(value_type)) {
-            return value_type;
-        }
+        if (value_type.is_err()) { return value_type; }
 
+        /** @type {GLSLType | GLSLType[]} */
+        let expected;
         switch (this.op.value) {
-            case "+": return value_type == "int" || value_type == "float" ? value_type : "error";
-            case "-": return value_type == "int" || value_type == "float" ? value_type : "error";
-            case "~": return value_type == "int" ? value_type : "error";
-            case "!": return value_type == "bool" ? value_type : "error";
+            case "+": expected = ["int", "float"]; break;
+            case "-": expected = ["int", "float"]; break;
+            case "~": expected = ["int"]; break;
+            case "!": expected = ["bool"]; break;
         }
+        return value_type
+            .expect(expected, `Cannot apply unary operator ${this.op.toString()} to expression of type ${value_type}`);
     }
 
     op_precedence() { return this.op.precedence(); }
@@ -666,13 +743,14 @@ export class BinOpExpr extends OpExpr {
 
     /**
      * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      * */
     type(type_ctx) {
         if (this.op.value == "=") {
             const { ident, expr } = unwrap(this.as_assignment());
-            const type = expr.type(type_ctx);
-            return type_ctx.add_type(ident, type) ?? type;
+            const expr_type = expr.type(type_ctx);
+            const expected_type = type_ctx.add_type(ident, expr_type.type) ?? expr_type;
+            return expected_type.expect(expr_type.type, `Expression type ${expr_type} does not match expected type ${expected_type}`);
         }
 
         let left_ty = this.left.type(type_ctx);
@@ -698,23 +776,23 @@ export class BinOpExpr extends OpExpr {
             case "&&":
             case "||":
             case "^^": return match_ty(left_ty, right_ty, ["bool"], "bool");
-            case ",": return "error";
+            case ",": return TypeResult.err(`Cannot assign type to binary operator ","`);
         }
 
         /**
          * Require that both types equal one of the expected_types, or else return the "error" type
-         * @param {GLSLType} left_ty
+         * @param {TypeResult} left_ty
+         * @param {TypeResult} right_ty
          * @param {GLSLType[]} expected_types
-         * @param {GLSLType} right_ty
          * @param {GLSLType | "same"} return_type
          */
         function match_ty(left_ty, right_ty, expected_types, return_type) {
             for (const type of expected_types) {
-                if (left_ty == type && right_ty == type) {
-                    return return_type == "same" ? type : return_type;
+                if (left_ty.type == type && right_ty.type == type) {
+                    return TypeResult.ok(return_type == "same" ? type : return_type);
                 }
             }
-            return "error";
+            return TypeResult.err(`Expected ${expected_types}, got ${left_ty} and ${right_ty}`);
         }
 
     }
@@ -728,7 +806,7 @@ export class BinOpExpr extends OpExpr {
                 const expr = this.right;
                 return { ident, expr };
             } else {
-                throw new Error(`Assignment Expr without left-side equal to ident ${this.toString("pretty")}`);
+                throw new Error(`Assignment Expr without left - side equal to ident ${this.toString("pretty")} `);
             }
         } else {
             return null;
@@ -766,29 +844,28 @@ export class TernaryOpExpr extends OpExpr {
         }
 
         if (style == "pretty") {
-            return `${cond_src} ? ${true_src} : ${false_src}`;
+            return `${cond_src} ? ${true_src} : ${false_src} `;
         } else {
-            return `${cond_src}?${true_src}:${false_src}`;
+            return `${cond_src}?${true_src}:${false_src} `;
         }
     }
 
     /**
     * @param {TypeContext} type_ctx
-    * @returns {GLSLType}
+    * @returns {TypeResult}
     * */
     type(type_ctx) {
-        let cond_ty = this.cond_expr.type(type_ctx);
+        let cond_ty = this.cond_expr.type(type_ctx)
+        cond_ty = cond_ty.expect("bool", `Expected conditional type to be bool, got ${cond_ty}`);
         let true_ty = this.true_expr.type(type_ctx);
         let false_ty = this.false_expr.type(type_ctx);
-        if (cond_ty != "bool") { return cond_ty; }
-        else if (is_unknown_or_error(true_ty)) {
+
+        if (true_ty.is_err()) {
             return true_ty;
-        } else if (is_unknown_or_error(false_ty)) {
+        } else if (false_ty.is_err()) {
             return false_ty;
-        } else if (true_ty != false_ty) {
-            return "error";
         } else {
-            return true_ty;
+            return true_ty.expect(false_ty.type, `Expected true and false arms of Ternary op to match. Got: ${true_ty}, ${false_ty}`);
         }
     }
 
@@ -853,7 +930,7 @@ export class ExprList extends OpExpr {
 
     /**
      * @param {TypeContext} type_ctx 
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      */
     type(type_ctx) {
         for (let i = 0; i < this.exprs.length; i++) {
@@ -862,7 +939,7 @@ export class ExprList extends OpExpr {
             if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
                 const ident = stmt_expr.value;
                 type_ctx.add_type(ident, type_ctx.get_default_type())
-                type = type_ctx.get_default_type();
+                type = TypeResult.ok(type_ctx.get_default_type());
             } else {
                 type = stmt_expr.type(type_ctx);
             }
@@ -871,7 +948,7 @@ export class ExprList extends OpExpr {
                 return type;
             }
         }
-        return "error";
+        return TypeResult.err("Cannot type ExprList of length 0");
     }
 
     /**
@@ -902,16 +979,26 @@ export class FunctionCall extends Expr {
 
     /**
      * @param {TypeContext} type_ctx
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      */
     type(type_ctx) {
         this.args.type(type_ctx);
         switch (this.identifier.identifier) {
-            case "int": return "int";
-            case "float": return "float";
-            case "bool": return "bool";
+            case "int": return TypeResult.ok("int");
+            case "float": return TypeResult.ok("float");
+            case "bool": return TypeResult.ok("bool");
         }
-        return "unknown";
+        return TypeResult.ok("unknown");
+    }
+
+    /**
+     * @param {string | Identifier} ident 
+     * @param {Expr | Expr[]} expr 
+     */
+    static wrap(ident, expr) {
+        const identifier = ident instanceof Identifier ? ident : new Identifier(ident);
+        const args = expr instanceof Array ? new ExprList(expr) : new ExprList([expr]);
+        return new FunctionCall(identifier, args);
     }
 
     /**
@@ -938,7 +1025,7 @@ export class FunctionCall extends Expr {
      * @returns {string}
      */
     toString(style) {
-        return `${this.identifier.toString()}(${this.args.toString(style)})`;
+        return `${this.identifier.toString()} (${this.args.toString(style)})`;
     }
 
     /**
@@ -959,7 +1046,7 @@ export class FunctionCall extends Expr {
                 float_value = value.value ? 1.0 : 0.0;
                 bool_value = value.value;
             } else {
-                throw new Error(`Unknown typeof ${typeof value.value}`);
+                throw new Error(`Unknown typeof ${typeof value.value} `);
             }
 
             switch (this.identifier.identifier) {
@@ -995,7 +1082,7 @@ export class Statement {
      * @returns {string}
      */
     toString(style) {
-        return `${this.expr.toString(style)};`;
+        return this.explicit_type ? `${this.explicit_type} ${this.expr.toString(style)};` : `${this.expr.toString(style)};`;
     }
 
     simplify() {
@@ -1004,6 +1091,7 @@ export class Statement {
 
     /**
      * @param {TypeContext} type_ctx
+     * @returns {TypeResult}
      */
     type(type_ctx) {
         const old_default = type_ctx.get_default_type();
@@ -1011,9 +1099,11 @@ export class Statement {
         if (this.explicit_type) {
             type_ctx.set_default_type(this.explicit_type);
         }
-        this.expr.type(type_ctx);
+
+        const expr_ty = this.expr.type(type_ctx);
 
         type_ctx.set_default_type(old_default);
+        return expr_ty;
     }
 }
 
@@ -1071,11 +1161,6 @@ function needs_parenthesis(parent, child, which_child) {
     } else {
         return false;
     }
-}
-
-/** @param {GLSLType} type  */
-function is_unknown_or_error(type) {
-    return type == "unknown" || type == "error";
 }
 
 /**

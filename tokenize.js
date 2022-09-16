@@ -2,7 +2,7 @@
  * @typedef {import("./ast.js").GLSLType} GLSLType
  */
 
-import { TypeContext } from "./ast.js";
+import { TypeContext, TypeResult } from "./ast.js";
 
 /**
  * @typedef {number | boolean} Literal
@@ -46,13 +46,13 @@ export class Identifier {
 
     /**
      * @param {TypeContext} type_ctx 
-     * @returns {GLSLType}
+     * @returns {TypeResult}
      */
     type(type_ctx) {
         if (INTEGER_VARIABLES.includes(this.identifier)) {
-            return "int";
+            return TypeResult.ok("int");
         } else if (FLOAT_VARIABLES.includes(this.identifier)) {
-            return "float";
+            return TypeResult.ok("float");
         } else {
             return type_ctx.lookup(this);
         }
