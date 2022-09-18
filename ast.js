@@ -1,5 +1,5 @@
 import { RULES, TokenStream } from "./parse.js";
-import { Identifier, Literal, tokenize } from "./tokenize.js";
+import { FLOAT_VARIABLES, Identifier, INTEGER_VARIABLES, Literal, tokenize } from "./tokenize.js";
 import { array_to_string, assert, assertBoolean, assertNumber, assertType, unwrap } from "./util.js";
 
 /**
@@ -226,7 +226,7 @@ export class Program {
     toString(style) {
         let program = "";
         for (const [ident, { type, explicitly_declared }] of Object.entries(this.type_ctx.types)) {
-            if (!explicitly_declared) {
+            if (!explicitly_declared && !INTEGER_VARIABLES.concat(FLOAT_VARIABLES).includes(ident)) {
                 program += style == "pretty" ? `${type} ${ident};\n` : `${type} ${ident};`;
             }
         }
