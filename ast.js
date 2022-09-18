@@ -1032,7 +1032,7 @@ export class ExprList extends OpExpr {
 export class FunctionCall extends Expr {
     /**
      * @param {Identifier} identifier
-     * @param {ExprList} args
+     * @param {Expr[]} args
      */
     constructor(identifier, args) {
         super();
@@ -1045,11 +1045,21 @@ export class FunctionCall extends Expr {
      * @returns {TypeResult}
      */
     type(type_ctx) {
-        this.args.type(type_ctx);
+        const actual_types = this.args.map((arg) => arg.type(type_ctx));
         switch (this.identifier.identifier) {
             case "int": return TypeResult.ok("int");
             case "float": return TypeResult.ok("float");
             case "bool": return TypeResult.ok("bool");
+            case "sin":
+            case "cos": {
+                if (this.args.length == 1) {
+                    let actual_type = actual_types[0];
+                    [this.args[0], actual_type] = coerce_expr("float", actual_type, this.args[0]);
+                    return actual_type;
+                } else {
+                    return TypeResult.err(`Expected args to have length 1, got ${this.args.length}`)
+                }
+            }
         }
         return TypeResult.ok("unknown");
     }
@@ -1060,7 +1070,7 @@ export class FunctionCall extends Expr {
      */
     static wrap(ident, expr) {
         const identifier = ident instanceof Identifier ? ident : new Identifier(ident);
-        const args = expr instanceof Array ? new ExprList(expr) : new ExprList([expr]);
+        const args = expr instanceof Array ? expr : [expr];
         return new FunctionCall(identifier, args);
     }
 
@@ -1069,7 +1079,11 @@ export class FunctionCall extends Expr {
      * @returns {UBInfo | null}
      */
     check_ub() {
-        return this.args.check_ub();
+        for (const arg of this.args) {
+            const ub = arg.check_ub();
+            if (ub) { return ub; }
+        }
+        return null;
     }
 
     /**
@@ -1080,7 +1094,7 @@ export class FunctionCall extends Expr {
         if (eval_result) {
             return eval_result;
         }
-        return new FunctionCall(this.identifier, this.args.simplify())
+        return new FunctionCall(this.identifier, this.args.map((x) => x.simplify()))
     }
 
     /**
@@ -1088,14 +1102,15 @@ export class FunctionCall extends Expr {
      * @returns {string}
      */
     toString(style) {
-        return `${this.identifier.toString()}(${this.args.toString(style)})`;
+        const args = this.args.map(x => x.toString(style)).join(", ");
+        return `${this.identifier.toString()}(${args})`;
     }
 
     /**
      * @returns {Value | null}
      */
     try_eval() {
-        const value = extract_one(this.args.exprs);
+        const value = extract_one(this.args);
         if (value instanceof Value) {
             const literal = value.asLiteral();
             if (literal != null) {

@@ -429,7 +429,7 @@ export const RULES = {
     value: new MatchOne(make_value, "<value>"),
     un_op_expr: seq(make_unop_expr,
         "un_op", "term"),
-    func_call: seq(make_func_call, or("type", "identifier"), lit("("), "expr_list", lit(")")),
+    func_call: seq(make_func_call, or("type", "identifier"), lit("("), maybe("expr_plus"), lit(")")),
     term_stream: seq(make_binop_from_list,
         "term", star("bin_op", "term")),
     term: or(
@@ -443,7 +443,8 @@ export const RULES = {
     assign: seq(make_assign,
         "identifier", lit("="), "expr"),
     expr: or("assign", "simple"),
-    expr_list: seq(make_expr_list, "expr", star(lit(","), "expr")),
+    expr_plus: seq(null, "expr", star(lit(","), "expr")),
+    expr_list: seq(make_expr_list, "expr_plus"),
     stmt: seq(make_statement,
         maybe("type"), "expr_list", lit(";")),
     program: seq(make_program, star("stmt"), "expr_list", new EndRule())
@@ -534,23 +535,22 @@ function make_assign(nodes) {
 
 /** @param {ASTNode[]} nodes */
 function make_func_call(nodes) {
-    if (nodes.length == 2) {
-        let [identifier, args] = nodes;
+    if (nodes.length >= 1) {
+        let identifier = nodes[0];
+        let args = nodes.slice(1).map((arg) => {
+            assertType(arg, Expr);
+            return arg
+        });
 
         if (typeof identifier == "string" && is_type_token(identifier)) {
             identifier = new Identifier(identifier);
         }
 
-        if (args instanceof Expr && !(args instanceof ExprList)) {
-            args = new ExprList([args]);
-        }
-
         assertType(identifier, Identifier);
-        assertType(args, ExprList);
 
         return new FunctionCall(identifier, args);
     } else {
-        throw new Error(`Expected nodes to be length 2, got ${nodes.length}`);
+        throw new Error(`Expected nodes to be at least length 1, got ${nodes.length}`);
     }
 }
 
