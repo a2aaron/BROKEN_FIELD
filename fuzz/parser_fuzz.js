@@ -7,6 +7,11 @@ function fuzz(bytes) {
     if (!/^[\x00-\x7F]*$/.test(string)) {
         return;
     }
+
+    if (string.length > 10_000) {
+        return;
+    }
+
     // @ts-ignore
     const result = Program.parse(string);
     // @ts-ignore

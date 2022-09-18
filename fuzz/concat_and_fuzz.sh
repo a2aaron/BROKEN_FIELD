@@ -16,4 +16,5 @@ sed -i '' '/import/d' out.js
 sed -i '' 's/^export //' out.js
 
 cat parser_fuzz.js >> out.js
-jsfuzz ./out.js --only-ascii  --versifier corpus/ seed.txt crashes/
+jsfuzz ./out.js --only-ascii  --versifier corpus2
+# jsfuzz ./out.js --only-ascii  --versifier seed.txt corpus/  crashes/

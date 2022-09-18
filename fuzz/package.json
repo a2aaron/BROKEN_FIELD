@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "nyc": "^15.1.0"
+  },
+  "scripts": {
+    "coverage": "nyc report --reporter=html --exclude-node-modules=false"
+  }
+}

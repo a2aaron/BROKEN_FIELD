@@ -1,5 +1,8 @@
 .nyc_output
-corpus
+corpus*
 seed.txt
 out.js
 crash*
+coverage/
+node_modules/
+package-lock.json
