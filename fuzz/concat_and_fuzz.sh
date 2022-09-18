@@ -1,3 +1,5 @@
+mv crash-* crashes
+
 echo "let document = {};
 document.getElementById = /** @returns {HTMLElement}} */ function (/** @type {string} */ id) {
     // @ts-ignore
@@ -14,4 +16,4 @@ sed -i '' '/import/d' out.js
 sed -i '' 's/^export //' out.js
 
 cat parser_fuzz.js >> out.js
-jsfuzz ./out.js --only-ascii  --versifier corpus/ seed.txt
+jsfuzz ./out.js --only-ascii  --versifier corpus/ seed.txt crashes/

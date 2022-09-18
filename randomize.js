@@ -1,5 +1,5 @@
 import { BinOpExpr, BinOp, Value, UnaryOpExpr, UnaryOp, Program, Expr } from "./ast.js";
-import { INTEGER_VARIABLES } from "./tokenize.js";
+import { INTEGER_VARIABLES, Literal } from "./tokenize.js";
 import { choose, getTypedElementById } from "./util.js";
 
 /** 
@@ -29,7 +29,7 @@ function random_value() {
     /** @type {string | number } */
     // @ts-ignore
     let value = choose(Math.floor(Math.random() * 256), ...allowed_generator_values());
-    return new Value(value);
+    return new Value(Literal.fromNumber(value, "int"));
 }
 
 /** @returns {UnaryOpExpr | Value} */

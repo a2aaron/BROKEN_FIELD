@@ -3,6 +3,10 @@
  */
 function fuzz(bytes) {
     const string = String.fromCodePoint(...bytes)
+
+    if (!/^[\x00-\x7F]*$/.test(string)) {
+        return;
+    }
     // @ts-ignore
     const result = Program.parse(string);
     // @ts-ignore

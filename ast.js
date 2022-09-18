@@ -1,10 +1,9 @@
 import { RULES, TokenStream } from "./parse.js";
-import { Identifier, is_literal, tokenize } from "./tokenize.js";
-import { array_to_string, assert, unwrap } from "./util.js";
+import { Identifier, Literal, tokenize } from "./tokenize.js";
+import { array_to_string, assert, assertBoolean, assertNumber, assertType, unwrap } from "./util.js";
 
 /**
  * Typedef imports
- * @typedef {import("./tokenize.js").Literal} Literal
  * @typedef {import("./tokenize.js").UnaryOpToken} UnaryOpToken
  * @typedef {import("./tokenize.js").BinOpToken} BinOpToken
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
@@ -266,25 +265,32 @@ export class UnaryOp {
     toString() { return this.value; }
 
     /**
-     * @param {Literal} a
+     * @param {Literal} a_lit
      * @returns {Literal}
      */
-    eval(a) {
-        if (typeof a == "number") {
+    eval(a_lit) {
+        const a = a_lit.toValue();
+        if (a_lit.type() == "int") {
+            assertNumber(a);
             switch (this.value) {
-                case "+": return +a;
-                case "-": return -a;
-                case "~": return ~a;
-                case "!": throw new Error(`Type mismatch: cannot eval ${this.value}${a}`);
+                case "+": return Literal.fromNumber(+a, "int");
+                case "-": return Literal.fromNumber(-a, "int");
+                case "~": return Literal.fromNumber(~a, "int");
             }
-        } else {
+        } else if (a_lit.type() == "float") {
+            assertNumber(a);
             switch (this.value) {
-                case "+":
-                case "-":
-                case "~": throw new Error(`Type mismatch: cannot eval ${this.value}${a}`);
-                case "!": return !a;
+                case "+": return Literal.fromNumber(+a, "float");
+                case "-": return Literal.fromNumber(-a, "float");
+            }
+        } else if ((a_lit.type() == "bool")) {
+            assertBoolean(a);
+            switch (this.value) {
+                case "!": return Literal.fromBool(!a);
             }
         }
+
+        throw new Error(`Type mismatch: cannot eval ${this.value}${a}`);
     }
 
     precedence() { return 3; }
@@ -305,44 +311,64 @@ export class BinOp {
     }
 
     /**
-     * @param {Literal} a
-     * @param {Literal} b
+     * @param {Literal} a_lit
+     * @param {Literal} b_lit
      * @returns {Literal}
      */
-    eval(a, b) {
-        if (typeof a == "number" && typeof b == "number") {
+    eval(a_lit, b_lit) {
+        const a = a_lit.toValue();
+        const b = b_lit.toValue();
+        const a_type = a_lit.type();
+        const b_type = b_lit.type();
+
+        if (a_type == "int" && b_type == "int" || a_type == "float" && b_type == "float") {
+            assertNumber(a);
+            assertNumber(b);
+            const type = a_type;
             switch (this.value) {
-                case "+": return a + b;
-                case "-": return a - b;
-                case "*": return a * b;
-                case "/": return b == 0 ? 0 : (a / b) | 0;
-                case "%": return b == 0 ? 0 : a % b;
-                case "^": return a ^ b;
-                case "&": return a & b;
-                case "|": return a | b;
-                case ">>": return a >> b;
-                case "<<": return a << b;
+                case "+": return Literal.fromNumber(a + b, type)
+                case "-": return Literal.fromNumber(a - b, type)
+                case "*": return Literal.fromNumber(a * b, type)
+                case "/": return Literal.fromNumber(b == 0 ? 0 : (a / b) | 0, type)
+                case "%": return Literal.fromNumber(b == 0 ? 0 : a % b, type)
+                case ">": return Literal.fromBool(a > b)
+                case "<": return Literal.fromBool(a < b)
+                case ">=": return Literal.fromBool(a >= b)
+                case "<=": return Literal.fromBool(a <= b)
             }
         }
 
-        if (typeof a == "boolean" && typeof b == "boolean") {
+        if (a_type == "int" && b_type == "int") {
+            assertNumber(a);
+            assertNumber(b);
             switch (this.value) {
-                case "&&": return a && b;
-                case "||": return a || b;
-                case "^^": return a != b;
+                case "^": return Literal.fromNumber(a ^ b, "int");
+                case "&": return Literal.fromNumber(a & b, "int");
+                case "|": return Literal.fromNumber(a | b, "int");
+                case ">>": return Literal.fromNumber(a >> b, "int");
+                case "<<": return Literal.fromNumber(a << b, "int");
             }
         }
 
-        switch (this.value) {
-            case ">": return a > b;
-            case "<": return a < b;
-            case ">=": return a >= b;
-            case "<=": return a <= b;
-            case "==": return a == b;
-            case "!=": return a != b;
+        if (a_type == "bool" && b_type == "bool") {
+            assertBoolean(a);
+            assertBoolean(b);
+            switch (this.value) {
+                case "&&": return Literal.fromBool(a && b);
+                case "||": return Literal.fromBool(a || b);
+                case "^^": return Literal.fromBool(a != b);
+            }
         }
 
-        throw new Error(`Type mismatch: cannot eval ${a} ${this.value} ${b}`);
+
+        if (a_type == b_type) {
+            switch (this.value) {
+                case "==": return Literal.fromBool(a == b);
+                case "!=": return Literal.fromBool(a != b);
+            }
+        }
+
+        throw new Error(`Type mismatch: cannot eval ${a_lit} ${this.value} ${b_lit} (${a_type} vs ${b_type})`);
     }
 
     /**
@@ -436,13 +462,7 @@ export class Value extends Expr {
     /** @param {string | Identifier | Literal} value */
     constructor(value) {
         super();
-        if (value === true) {
-            this.value = "true";
-        } else if (value === false) {
-            this.value = "false";
-        } else if (typeof value === "number") {
-            this.value = value.toString();
-        } else if (value instanceof Identifier) {
+        if (value instanceof Identifier || value instanceof Literal) {
             this.value = value;
         } else {
             this.value = new Identifier(value);
@@ -457,25 +477,14 @@ export class Value extends Expr {
     type(type_ctx) {
         if (this.value instanceof Identifier) {
             return this.value.type(type_ctx);
-        } else if (this.value === "true" || this.value === "false") {
-            return TypeResult.ok("bool");
-        } else if (!isNaN(Number(this.value))) {
-            if (this.value.includes(".")) {
-                return TypeResult.ok("float");
-            } else {
-                return TypeResult.ok("int");
-            }
+        } else {
+            return TypeResult.ok(this.value.type());
         }
-        throw new Error(`expected value to be an int, float, bool, or identifier. Got ${this.value}`);
     }
 
     /** @returns {Literal | null} */
     asLiteral() {
-        if (this.value instanceof Identifier) { return null; }
-        else if (this.value === "true") { return true; }
-        else if (this.value === "false") { return false; }
-        else if (!isNaN(Number(this.value))) { return Number(this.value); }
-        else { throw new Error(`expected value to be an int, float, bool, or identifier. Got ${this.value}`); }
+        return this.value instanceof Literal ? this.value : null;
     }
 
     toString() {
@@ -631,7 +640,7 @@ export class BinOpExpr extends OpExpr {
             }
         }
 
-        /** @type {[string | number, string, string | number, string | number, string?][]} */
+        /** @type {["?a" | number, string, "?a" | number, "?a" | number, string?][]} */
         let rules = [
             // Constant Identities
             ["?a", "+", 0, "?a", "commutative"],
@@ -663,11 +672,11 @@ export class BinOpExpr extends OpExpr {
         ];
         for (let [r_left, rule_op, r_right, rule_result, commutative] of rules) {
             /** @type {"?a" | Expr} */
-            const rule_left = r_left == "?a" ? "?a" : new Value(r_left);
+            const rule_left = r_left == "?a" ? "?a" : new Value(Literal.fromNumber(r_left, "int"));
             /** @type {"?a" | Expr} */
-            const rule_right = r_right == "?a" ? "?a" : new Value(r_right);
+            const rule_right = r_right == "?a" ? "?a" : new Value(Literal.fromNumber(r_right, "int"));
             /** @type {"?a" | Expr} */
-            const result = rule_result == "?a" ? "?a" : new Value(rule_result);
+            const result = rule_result == "?a" ? "?a" : new Value(Literal.fromNumber(rule_result, "int"));
 
             const is_commutative = commutative === "commutative";
 
@@ -685,8 +694,14 @@ export class BinOpExpr extends OpExpr {
             // ?x - (-?a) => ?x + ?a
             if (right instanceof UnaryOpExpr && right.op.toString() == "-") {
                 return new BinOpExpr(left, new BinOp("+"), right.value);
-            } else if (right instanceof Value && typeof right.value == "number" && right.value < 0) {
-                return new BinOpExpr(left, new BinOp("+"), new Value(-right.value));
+            } else if (right instanceof Value && right.asLiteral()) {
+                const right_lit = unwrap(right.asLiteral());
+                const right_type = right_lit.type();
+                if (right_type == "int" || right_type == "float") {
+                    const right_num = right_lit.toValue();
+                    assertNumber(right_num)
+                    return new BinOpExpr(left, new BinOp("+"), new Value(Literal.fromNumber(-right.value, right_type)));
+                }
             }
 
         }
@@ -751,7 +766,7 @@ export class BinOpExpr extends OpExpr {
             return right;
         }
 
-        let right_val = expr_extract_value(this.right);
+        let right_val = expr_extract_literal(this.right);
 
         let divide_by_zero = this.op.value == "/" && right_val === 0;
         let overwide_shift = this.op.value == "<<" && (typeof right_val == "number" && right_val > 32);
@@ -923,9 +938,9 @@ export class TernaryOpExpr extends OpExpr {
      */
     simplify() {
         const cond = this.cond_expr.simplify();
-        if (cond instanceof Value && cond.asLiteral() === true) {
+        if (cond instanceof Value && cond.asLiteral()?.toValue() === true) {
             return this.true_expr.simplify();
-        } else if (cond instanceof Value && cond.asLiteral() === false) {
+        } else if (cond instanceof Value && cond.asLiteral()?.toValue() === false) {
             return this.false_expr.simplify()
         } else {
             return new TernaryOpExpr(cond, this.true_expr.simplify(), this.false_expr.simplify());
@@ -1081,27 +1096,14 @@ export class FunctionCall extends Expr {
      */
     try_eval() {
         const value = extract_one(this.args.exprs);
-        if (value instanceof Value && value.asLiteral() != null) {
+        if (value instanceof Value) {
             const literal = value.asLiteral();
-            let int_value;
-            let float_value;
-            let bool_value;
-            if (typeof literal == "number") {
-                int_value = Math.trunc(literal);
-                float_value = literal;
-                bool_value = literal != 0;
-            } else if (typeof literal == "boolean") {
-                int_value = literal ? 1 : 0;
-                float_value = literal ? 1.0 : 0.0;
-                bool_value = literal;
-            } else {
-                throw new Error(`Unknown typeof ${typeof literal} `);
-            }
-
-            switch (this.identifier.identifier) {
-                case "int": return new Value(int_value);
-                case "float": return new Value(float_value);
-                case "bool": return new Value(bool_value);
+            if (literal != null) {
+                switch (this.identifier.identifier) {
+                    case "int": return new Value(literal.coerceInt());
+                    case "float": return new Value(literal.coerceFloat());
+                    case "bool": return new Value(literal.coerceBool());
+                }
             }
         }
 
@@ -1249,14 +1251,13 @@ function expr_eq(left, right) {
 
 /**
  * @param {Expr} expr
- * @returns {Identifier | Literal | null}
+ * @returns {number | boolean | null}
  */
-function expr_extract_value(expr) {
+function expr_extract_literal(expr) {
     let simple_expr = expr.simplify();
     if (simple_expr instanceof Value) {
-        // @ts-ignore (safe because the only time when .value is a string is if it is a literal and 
-        // otherwise is always an identifier)
-        return simple_expr.asLiteral() ?? simple_expr.value;
+        const literal = simple_expr.asLiteral();
+        return literal ? literal.toValue() : null;
     } else {
         return null;
     }

@@ -1,5 +1,5 @@
 import { Value, BinOpExpr, UnaryOpExpr, UnaryOp, BinOp, TernaryOpExpr, Statement, ExprList, Expr, Program, FunctionCall } from "./ast.js";
-import { Identifier, is_simple_bin_op_token, is_literal, is_type_token, is_un_op_token, tokenize } from "./tokenize.js";
+import { Identifier, is_simple_bin_op_token, is_type_token, is_un_op_token, Literal, tokenize } from "./tokenize.js";
 import { array_to_string, assertType } from "./util.js";
 
 const MAX_PRECEDENCE = 17;
@@ -8,7 +8,6 @@ const MAX_PRECEDENCE = 17;
  * Typedef imports
  * @typedef {import("./tokenize.js").TextualToken} TextualToken 
  * @typedef {import("./tokenize.js").TypeToken} TypeToken
- * @typedef {import("./tokenize.js").Literal} Literal
  * @typedef {import("./tokenize.js").Token} Token
  */
 
@@ -323,6 +322,28 @@ class LookupRule extends ParserRule {
     }
 }
 
+/** 
+ * This rule succeeds when the stream is empty. Otherwise, it fails. It does not construct any 
+ * ASTNodes and does not consume any tokens. End of stream is defined as stream.peek() returning null. */
+class EndRule extends ParserRule {
+    constructor() { super(); }
+
+    /**
+     * @returns {ParseResult}
+     * @param {TokenStream} stream
+     */
+    parse_impl(stream) {
+        if (stream.peek() != null) {
+            return new Error(`Expected an empty stream. Got ${stream.peek()}`);
+        } else {
+            return null;
+        }
+    }
+
+    /** @returns { string } */
+    rule_string() { return "[END]"; }
+}
+
 /**  
  * Convience function for creating an OrRule. The rules are a list that will be wrapped in an OrRule
  * , followed by a KleenStar. If a rule is a bare string, it is assumed to refer to a key in the
@@ -403,7 +424,6 @@ function maybe(...rules) {
 export const RULES = {
     type: new MatchOne(make_type_token, "<type token>"),
     identifier: new MatchOne(make_identifier, "<identifier>"),
-    literal: new MatchOne(make_literal, "<literal>"),
     un_op: new MatchOne(make_unop, "<unary operator>"),
     bin_op: new MatchOne(make_bin_op, "<binary operator>"),
     value: new MatchOne(make_value, "<value>"),
@@ -426,7 +446,7 @@ export const RULES = {
     expr_list: seq(make_expr_list, "expr", star(lit(","), "expr")),
     stmt: seq(make_statement,
         maybe("type"), "expr_list", lit(";")),
-    program: seq(make_program, star("stmt"), "expr_list")
+    program: seq(make_program, star("stmt"), "expr_list", new EndRule())
 }
 
 /** @param {Token} token */
@@ -440,13 +460,8 @@ function make_identifier(token) {
 }
 
 /** @param {Token} token */
-function make_literal(token) {
-    return is_literal(token) ? new Value(token) : new Error(`Expected literal, got ${token}`);
-}
-
-/** @param {Token} token */
 function make_value(token) {
-    return is_literal(token) || token instanceof Identifier ? new Value(token) : new Error(`Expected an identifier or literal, got ${token}`);
+    return token instanceof Literal || token instanceof Identifier ? new Value(token) : new Error(`Expected an identifier or literal, got ${token}`);
 }
 
 /** @param {Token} token */

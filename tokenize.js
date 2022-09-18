@@ -3,9 +3,9 @@
  */
 
 import { TypeContext, TypeResult } from "./ast.js";
+import { array_to_string, assert, assertBoolean, assertNumber } from "./util.js";
 
 /**
- * @typedef {number | boolean} Literal
  * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "=" | ","} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
@@ -34,6 +34,84 @@ const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";",
 export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
 
+export class Literal {
+    /** @param {string} value */
+    constructor(value) {
+        this.value = value;
+    }
+
+    /**
+     * @param {number} value
+     * @param {"int" | "float"} type
+     */
+    static fromNumber(value, type) {
+        switch (type) {
+            case "int": assert(Number.isInteger(value), `Expected int, got ${value}`); return new Literal(value.toFixed(0));
+            case "float": return new Literal(value.toFixed(1));
+        }
+    }
+
+    /**
+     * @param {boolean} value
+     */
+    static fromBool(value) {
+        return value == true ? new Literal("true") : new Literal("false");
+    }
+
+    type() {
+        if (this.value === "true" || this.value === "false") {
+            return "bool";
+        } else if (this.value.includes(".")) {
+            return "float";
+        } else {
+            return "int";
+        }
+    }
+
+    toString() {
+        return this.value;
+    }
+
+    toValue() {
+        if (this.value === "true") {
+            return true;
+        } else if (this.value === "false") {
+            return false;
+        } else {
+            return Number(this.value);
+        }
+    }
+
+    /** @returns {Literal} */
+    coerceInt() {
+        let value = this.toValue();
+        switch (this.type()) {
+            case "int": assertNumber(value); return this;
+            case "float": assertNumber(value); return Literal.fromNumber(Math.trunc(value), "int");
+            case "bool": assertBoolean(value); return new Literal(value ? "1" : "0");
+        }
+    }
+
+    /** @returns {Literal} */
+    coerceFloat() {
+        let value = this.toValue();
+        switch (this.type()) {
+            case "int": assertNumber(value); return new Literal(value.toFixed(1));
+            case "float": assertNumber(value); return this;
+            case "bool": assertBoolean(value); return new Literal(value ? "1.0" : "0.0");
+        }
+    }
+
+    /** @returns {Literal} */
+    coerceBool() {
+        let value = this.toValue();
+        switch (this.type()) {
+            case "int": assertNumber(value); return Literal.fromBool(value === 0);
+            case "float": assertNumber(value); return Literal.fromBool(value === 0);
+            case "bool": assertBoolean(value); return this;
+        }
+    }
+}
 
 export class Identifier {
     /** @param {string} identifier */
@@ -84,10 +162,8 @@ export function tokenize(bytebeat) {
 
         for (const token of TEXT_TOKENS) {
             if (remaining.startsWith(token)) {
-                if (token === "true") {
-                    tokens.push(true);
-                } else if (token === "false") {
-                    tokens.push(false);
+                if (token === "true" || token === "false") {
+                    tokens.push(new Literal(token));
                 } else {
                     tokens.push(token);
                 }
@@ -98,7 +174,7 @@ export function tokenize(bytebeat) {
 
         let number = try_consume_number(remaining);
         if (number != null) {
-            tokens.push(number.value);
+            tokens.push(new Literal(number.value));
             i += number.tokens_consumed;
             continue;
         }
@@ -111,15 +187,8 @@ export function tokenize(bytebeat) {
         }
         return new Error(`Unrecognized token: ${this_char}`);
     }
-    return tokens;
-}
 
-/**
- * @param {Token | null} token 
- * @returns {token is Literal}
- */
-export function is_literal(token) {
-    return typeof token == "number" || typeof token == "boolean"
+    return tokens;
 }
 
 /**
@@ -167,7 +236,7 @@ function try_consume_identifier(input) {
 
 /**
  * @param {string} input
- * @return {{value: number, tokens_consumed: number} | null}
+ * @return {{value: string, tokens_consumed: number} | null}
  */
 function try_consume_number(input) {
     let number = "";
@@ -179,5 +248,5 @@ function try_consume_number(input) {
             break;
         }
     }
-    return number == "" ? null : { value: Number(number), tokens_consumed: number.length };
+    return number == "" ? null : { value: number, tokens_consumed: number.length };
 }

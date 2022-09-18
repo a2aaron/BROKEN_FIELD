@@ -151,8 +151,33 @@ export function assert_html_node(object, type) {
  * @returns {asserts value is ElementType}
  */
 export function assertType(value, ty) {
+    if (ty.name == "Number") {
+        console.warn(`Warning: using assertType() with ${ty.name} will not work for primative numbers! Use assertNumber() instead.`);
+    } else if (ty.name == "Boolean") {
+        console.warn(`Warning: using assertType() with ${ty.name} will not work for primative booleans! Use assertBoolean() instead.`);
+    }
     if (!(value instanceof ty)) {
         throw new Error(`Assert failed: Expected value (${value}) to be type ${ty.name}, but got ${value.constructor.name} instead.`);
+    }
+}
+
+/**
+ * @param {any} value
+ * @returns {asserts value is number}
+ */
+export function assertNumber(value) {
+    if (typeof value != "number") {
+        throw new Error(`Assert failed: Expected typeof value (${value}) to be number, but got ${value.constructor.name} instead.`);
+    }
+}
+
+/**
+ * @param {any} value
+ * @returns {asserts value is boolean}
+ */
+export function assertBoolean(value) {
+    if (typeof value != "boolean") {
+        throw new Error(`Assert failed: Expected typeof value (${value}) to be boolean, but got ${value.constructor.name} instead.`);
     }
 }
 
