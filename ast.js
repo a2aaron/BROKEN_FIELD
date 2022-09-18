@@ -174,11 +174,12 @@ export class Program {
         let expr_type = this.expr.type(this.type_ctx);
         if (expr_type.is_err()) {
             this.type_errors.push(expr_type);
+        } else {
+            // If the expression type typechecks, we know it's semantically valid.
+            // this.expr must return an int. If it doesn't, coerce it to one.
+            [this.expr, expr_type] = coerce_expr("int", expr_type, this.expr);
+            this.ub_info = this.expr.check_ub();
         }
-        // this.expr must return an int. If it doesn't, coerce it to one.
-        [this.expr, expr_type] = coerce_expr("int", expr_type, this.expr);
-
-        this.ub_info = this.expr.check_ub();
     }
 
     /** 
