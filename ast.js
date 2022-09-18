@@ -1,6 +1,6 @@
 import { RULES, TokenStream } from "./parse.js";
 import { Identifier, is_literal, tokenize } from "./tokenize.js";
-import { array_to_string, unwrap } from "./util.js";
+import { array_to_string, assert, unwrap } from "./util.js";
 
 /**
  * Typedef imports
@@ -32,7 +32,7 @@ export class TypeResult {
     }
 
     is_err() {
-        return this.type == "unknown" || this.type == "error";
+        return this.type == "error";
     }
 
     /**
@@ -49,6 +49,17 @@ export class TypeResult {
         }
 
         return TypeResult.err(error);
+    }
+
+    /**
+     * Coerce this type to some other type, retaining the error stack.
+     * @param {GLSLType | TypeResult} other_type
+     */
+    coerce_to(other_type) {
+        if (other_type instanceof TypeResult) {
+            other_type = other_type.type;
+        }
+        return new TypeResult(other_type, this.errors);
     }
 
     /**
@@ -161,19 +172,14 @@ export class Program {
                 this.type_errors.push(stmt_type);
             }
         }
-        const expr_type = this.expr.type(this.type_ctx);
+        let expr_type = this.expr.type(this.type_ctx);
         if (expr_type.is_err()) {
             this.type_errors.push(expr_type);
         }
+        // this.expr must return an int. If it doesn't, coerce it to one.
+        [this.expr, expr_type] = coerce_expr("int", expr_type, this.expr);
 
-        try {
-            // check_ub can throw an exception if the program successfully parses but is
-            // semenantically invalid (ex: "false + 1"). This is because check_ub can call
-            // simplify, which can call eval, which throws on illegal input.
-            this.ub_info = this.expr.check_ub();
-        } catch (e) {
-            this.ub_info = null;
-        }
+        this.ub_info = this.expr.check_ub();
     }
 
     /** 
@@ -436,8 +442,10 @@ export class Value extends Expr {
             this.value = "false";
         } else if (typeof value === "number") {
             this.value = value.toString();
-        } else {
+        } else if (value instanceof Identifier) {
             this.value = value;
+        } else {
+            this.value = new Identifier(value);
         }
 
     }
@@ -550,19 +558,25 @@ export class UnaryOpExpr extends OpExpr {
      * @returns {TypeResult}
      * */
     type(type_ctx) {
-        let value_type = this.value.type(type_ctx);
-        if (value_type.is_err()) { return value_type; }
+        let actual_type = this.value.type(type_ctx);
+        if (actual_type.is_err()) { return actual_type; }
 
-        /** @type {GLSLType | GLSLType[]} */
-        let expected;
+        /** @type {GLSLType[]} */
+        let expected_types;
         switch (this.op.value) {
-            case "+": expected = ["int", "float"]; break;
-            case "-": expected = ["int", "float"]; break;
-            case "~": expected = ["int"]; break;
-            case "!": expected = ["bool"]; break;
+            case "+": expected_types = ["int", "float"]; break;
+            case "-": expected_types = ["int", "float"]; break;
+            case "~": expected_types = ["int"]; break;
+            case "!": expected_types = ["bool"]; break;
         }
-        return value_type
-            .expect(expected, `Cannot apply unary operator ${this.op.toString()} to expression of type ${value_type}`);
+
+        if (expected_types.includes(actual_type.type)) {
+            return actual_type;
+        } else {
+            [this.value, actual_type] = coerce_expr(expected_types[0], actual_type, this.value)
+            return actual_type;
+        }
+
     }
 
     op_precedence() { return this.op.precedence(); }
@@ -757,54 +771,77 @@ export class BinOpExpr extends OpExpr {
      * */
     type(type_ctx) {
         if (this.op.value == "=") {
-            const { ident, expr } = unwrap(this.as_assignment());
-            const expr_type = expr.type(type_ctx);
-            const expected_type = type_ctx.add_type(ident, expr_type.type) ?? expr_type;
-            return expected_type.expect(expr_type.type, `Expression type ${expr_type} does not match expected type ${expected_type}`);
+            let { ident, expr } = unwrap(this.as_assignment());
+            let actual_type = expr.type(type_ctx);
+            const expected_type = type_ctx.add_type(ident, actual_type.type) ?? actual_type;
+
+            if (actual_type.type == expected_type.type) {
+                return actual_type;
+            } else {
+                [this.right, actual_type] = coerce_expr(expected_type.type, actual_type, expr);
+                return actual_type;
+            }
         }
 
         let left_ty = this.left.type(type_ctx);
+        if (left_ty.is_err()) { return left_ty; }
         let right_ty = this.right.type(type_ctx);
-
+        if (right_ty.is_err()) { return right_ty; }
+        /** @type {GLSLType[]} */
+        let expected_types;
+        /** @type {GLSLType | "same"} */
+        let return_type;
         switch (this.op.value) {
             case "+":
             case "-":
             case "*":
             case "/":
-            case "%": return match_ty(left_ty, right_ty, ["int", "float"], "same");
+            case "%": expected_types = ["int", "float"]; return_type = "same"; break;
             case "^":
             case "&":
             case "|":
             case ">>":
-            case "<<": return match_ty(left_ty, right_ty, ["int"], "same");
+            case "<<": expected_types = ["int"]; return_type = "same"; break;
             case ">":
             case "<":
             case ">=":
-            case "<=": return match_ty(left_ty, right_ty, ["int", "float"], "bool");
+            case "<=": expected_types = ["int", "float"]; return_type = "bool"; break;
             case "==":
-            case "!=": return match_ty(left_ty, right_ty, ["int", "float", "bool"], "bool");
+            case "!=": expected_types = ["int", "float", "bool"]; return_type = "bool"; break;
             case "&&":
             case "||":
-            case "^^": return match_ty(left_ty, right_ty, ["bool"], "bool");
+            case "^^": expected_types = ["bool"]; return_type = "bool"; break;
             case ",": return TypeResult.err(`Cannot assign type to binary operator ","`);
         }
 
-        /**
-         * Require that both types equal one of the expected_types, or else return the "error" type
-         * @param {TypeResult} left_ty
-         * @param {TypeResult} right_ty
-         * @param {GLSLType[]} expected_types
-         * @param {GLSLType | "same"} return_type
-         */
-        function match_ty(left_ty, right_ty, expected_types, return_type) {
-            for (const type of expected_types) {
-                if (left_ty.type == type && right_ty.type == type) {
-                    return TypeResult.ok(return_type == "same" ? type : return_type);
-                }
+        let left_ok = expected_types.includes(left_ty.type);
+        let right_ok = expected_types.includes(right_ty.type);
+        // If the two types are the same, and they are not acceptable, coerce the
+        // two types to some acceptable type.
+        if (left_ty.type == right_ty.type && !left_ok) {
+            [this.left, left_ty] = coerce_expr(expected_types[0], left_ty, this.left);
+            [this.right, right_ty] = coerce_expr(expected_types[0], right_ty, this.right);
+        } else {
+            // If the two types are not the same, but at least one is acceptable, coerce one of the 
+            // types to the other type. Otherwise, coerce both types to some acceptable type.
+            if (left_ok) {
+                [this.right, right_ty] = coerce_expr(left_ty.type, right_ty, this.right);
+            } else if (right_ok) {
+                [this.left, left_ty] = coerce_expr(right_ty.type, left_ty, this.left);
+            } else {
+                [this.left, left_ty] = coerce_expr(expected_types[0], left_ty, this.left);
+                [this.right, right_ty] = coerce_expr(expected_types[0], right_ty, this.right);
             }
-            return TypeResult.err(`Expected ${expected_types}, got ${left_ty} and ${right_ty}`);
         }
 
+        assert(left_ty.type == right_ty.type, `Expected left_ty ${left_ty} to equal right_ty ${right_ty}`);
+        assert(expected_types.includes(left_ty.type), `Expected left_ty to be one of ${array_to_string(expected_types)}, got ${left_ty}`);
+
+        if (return_type == "same") {
+            return left_ty;
+        } else {
+            return TypeResult.ok(return_type);
+        }
     }
     /**
      * @returns {{ ident: Identifier, expr: Expr } | null} 
@@ -865,18 +902,19 @@ export class TernaryOpExpr extends OpExpr {
     * @returns {TypeResult}
     * */
     type(type_ctx) {
-        let cond_ty = this.cond_expr.type(type_ctx)
-        cond_ty = cond_ty.expect("bool", `Expected conditional type to be bool, got ${cond_ty}`);
+        let cond_ty = this.cond_expr.type(type_ctx);
         let true_ty = this.true_expr.type(type_ctx);
         let false_ty = this.false_expr.type(type_ctx);
 
-        if (true_ty.is_err()) {
-            return true_ty;
-        } else if (false_ty.is_err()) {
-            return false_ty;
-        } else {
-            return true_ty.expect(false_ty.type, `Expected true and false arms of Ternary op to match. Got: ${true_ty}, ${false_ty}`);
+        if (cond_ty.is_err()) { return cond_ty; }
+        if (true_ty.is_err()) { return true_ty; }
+        if (false_ty.is_err()) { return false_ty; }
+
+        [this.cond_expr, cond_ty] = coerce_expr("bool", cond_ty, this.cond_expr)
+        if (true_ty.type != false_ty.type) {
+            [this.false_expr, false_ty] = coerce_expr(true_ty.type, false_ty, this.false_expr);
         }
+        return true_ty;
     }
 
     /**
@@ -1035,7 +1073,7 @@ export class FunctionCall extends Expr {
      * @returns {string}
      */
     toString(style) {
-        return `${this.identifier.toString()} (${this.args.toString(style)})`;
+        return `${this.identifier.toString()}(${this.args.toString(style)})`;
     }
 
     /**
@@ -1172,6 +1210,24 @@ function needs_parenthesis(parent, child, which_child) {
     } else {
         return false;
     }
+}
+
+/**
+ * Check if actual_type equals any of the types in expected_types. If not, coerces the expression
+ * to whatever the passed type.
+ * @param {GLSLType} expected_type
+ * @param {TypeResult} actual_type 
+ * @param {Expr} expr 
+ * @returns {[Expr, TypeResult]}
+ */
+function coerce_expr(expected_type, actual_type, expr) {
+    if (expected_type == "error") {
+        throw new Error("Cannot coerce expression to type error");
+    }
+    if (expected_type == actual_type.type) {
+        return [expr, actual_type];
+    }
+    return [FunctionCall.wrap(expected_type, expr), actual_type.coerce_to(expected_type)];
 }
 
 /**

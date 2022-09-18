@@ -118,6 +118,16 @@ export function h(tag, attrs, body = []) {
 }
 
 /**
+ * @param {any} value
+ * @param {string} msg
+ */
+export function assert(value, msg) {
+    if (!value) {
+        throw new Error(`Assert failed: ${msg}`);
+    }
+}
+
+/**
  * @template ElementType
  * @param {any} object 
  * @param {Constructor<ElementType>} type The HTML element name to check for
