@@ -241,8 +241,9 @@ function try_consume_identifier(input) {
 function try_consume_number(input) {
     let number = "";
     for (let i = 0; i < input.length; i++) {
-        let this_char = input[i];
-        if (!isNaN(Number(number + this_char))) {
+        const this_char = input[i];
+        const is_digit = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "."].includes(this_char);
+        if (!isNaN(Number(number + this_char)) && is_digit) {
             number += this_char;
         } else {
             break;
