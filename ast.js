@@ -1058,7 +1058,13 @@ export class FunctionCall extends Expr {
      * @returns {TypeResult}
      */
     type(type_ctx) {
-        const actual_types = this.args.map((arg) => arg.type(type_ctx));
+        let actual_types = [];
+        for (const arg of this.args) {
+            const actual_type = arg.type(type_ctx);
+            if (actual_type.is_err()) { return actual_type; }
+            actual_types.push(actual_type);
+        }
+
         switch (this.identifier.identifier) {
             case "int": return TypeResult.ok("int");
             case "float": return TypeResult.ok("float");
