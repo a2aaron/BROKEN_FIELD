@@ -413,9 +413,9 @@ export const RULES = {
     term_stream: seq(make_binop_from_list,
         "term", star("bin_op", "term")),
     term: or(
+        "func_call",
         "value",
         "un_op_expr",
-        "func_call",
         seq(null,
             lit("("), "expr_list", lit(")"))),
     simple: seq(maybe_make_ternary,
