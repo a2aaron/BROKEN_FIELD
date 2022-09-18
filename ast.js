@@ -788,7 +788,9 @@ export class BinOpExpr extends OpExpr {
         if (this.op.value == "=") {
             let { ident, expr } = unwrap(this.as_assignment());
             let actual_type = expr.type(type_ctx);
+            if (actual_type.is_err()) { return actual_type; }
             const expected_type = type_ctx.add_type(ident, actual_type.type) ?? actual_type;
+            if (expected_type.is_err()) { return expected_type; }
 
             if (actual_type.type == expected_type.type) {
                 return actual_type;
