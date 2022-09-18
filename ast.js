@@ -1002,12 +1002,22 @@ export class ExprList extends OpExpr {
         for (let i = 0; i < this.exprs.length; i++) {
             const stmt_expr = this.exprs[i];
             let type;
+            // If the expr is a lone identifier, then this is probably inside of a statement. Try to
+            // deduce a default type for it.
+            // TODO: this almost certainly is the wrong way to do this. Split Statement into two sub
+            // subclasses: Stmt-Expr and Stmt-Decl, with the decl containing a comma seperated list 
+            // of Assign | Identifier.
             if (stmt_expr instanceof Value && stmt_expr.value instanceof Identifier) {
                 const ident = stmt_expr.value;
                 type_ctx.add_type(ident, type_ctx.get_default_type())
                 type = TypeResult.ok(type_ctx.get_default_type());
             } else {
                 type = stmt_expr.type(type_ctx);
+            }
+
+            // If any of the sub-exprs fail to type check, fail.
+            if (type.is_err()) {
+                return type;
             }
 
             if (i == this.exprs.length - 1) {
@@ -1060,7 +1070,7 @@ export class FunctionCall extends Expr {
                     [this.args[0], actual_type] = coerce_expr("float", actual_type, this.args[0]);
                     return actual_type;
                 } else {
-                    return TypeResult.err(`Expected args to have length 1, got ${this.args.length}`)
+                    return TypeResult.err(`Expected args for ${this.identifier} to have length 1, got ${this.args.length}`)
                 }
             }
         }
