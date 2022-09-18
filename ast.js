@@ -398,7 +398,6 @@ export class BinOp {
             case "^^": return 13;
             case "||": return 14;
             case "=": return 16;
-            case ",": return 17;
         }
     }
 
@@ -829,7 +828,6 @@ export class BinOpExpr extends OpExpr {
             case "&&":
             case "||":
             case "^^": expected_types = ["bool"]; return_type = "bool"; break;
-            case ",": return TypeResult.err(`Cannot assign type to binary operator ","`);
         }
 
         let left_ok = expected_types.includes(left_ty.type);

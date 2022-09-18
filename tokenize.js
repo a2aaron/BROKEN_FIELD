@@ -6,12 +6,12 @@ import { TypeContext, TypeResult } from "./ast.js";
 import { array_to_string, assert, assertBoolean, assertNumber } from "./util.js";
 
 /**
- * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "=" | ","} BinOpToken
+ * @typedef {"+" | "-" | "*" | "/" | "%" | "&" | "^" | "|" | ">>" | "<<" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "^^" | "||" | "="} BinOpToken
  * @typedef {"+" | "-" | "~" | "!"} UnaryOpToken
  * @typedef {BinOpToken | UnaryOpToken} OpToken
  * @typedef {"int" | "float" | "bool"} TypeToken
  * @typedef {"true" | "false"} BoolToken
- * @typedef {"(" | ")" | ";" | ":" | "?" | TypeToken | BoolToken | OpToken } TextualToken
+ * @typedef {"(" | ")" | ";" | ":" | "?" | "," | TypeToken | BoolToken | OpToken } TextualToken
  * @typedef {TextualToken | Identifier | Literal} Token
  */
 
@@ -21,7 +21,7 @@ export const SIMPLE_BINARY_OPERATORS = ["+", "-", "*", "/", "%", "&", "^", "|", 
 export const UNARY_OPERATORS = ["+", "-", "~", "!"];
 /** @type {OpToken[]} */
 // @ts-ignore
-const OPERATORS = SIMPLE_BINARY_OPERATORS.concat(UNARY_OPERATORS, ["=", ","]);
+const OPERATORS = SIMPLE_BINARY_OPERATORS.concat(UNARY_OPERATORS, ["="]);
 /** @type {TypeToken[]} */
 export const TYPE_TOKENS = ["int", "float", "bool"];
 /** @type {BoolToken[]} */
@@ -29,7 +29,7 @@ const BOOLEANS = ["true", "false"];
 
 /** @type {TextualToken[]} */
 // @ts-ignore
-const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?"]).sort((x, y) => y.length - x.length);
+const TEXT_TOKENS = OPERATORS.concat(BOOLEANS, TYPE_TOKENS, ["(", ")", "=", ";", ":", "?", ","]).sort((x, y) => y.length - x.length);
 
 export const INTEGER_VARIABLES = ["t", "sx", "sy", "mx", "my", "kx", "ky"];
 export const FLOAT_VARIABLES = ["t_f", "sx_f", "sy_f", "mx_f", "my_f", "kx_f", "ky_f"];
